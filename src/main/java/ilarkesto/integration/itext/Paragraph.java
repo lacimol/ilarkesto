@@ -1,5 +1,20 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.integration.itext;
 
+import ilarkesto.core.logging.Log;
 import ilarkesto.pdf.AImage;
 import ilarkesto.pdf.AParagraph;
 import ilarkesto.pdf.AParagraphElement;
@@ -7,17 +22,20 @@ import ilarkesto.pdf.APdfElement;
 import ilarkesto.pdf.FontStyle;
 import ilarkesto.pdf.TextChunk;
 
-import java.awt.Color;
 import java.io.File;
 
 import com.lowagie.text.Chunk;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
+import com.lowagie.text.Phrase;
 import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.FontSelector;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 
 public class Paragraph extends AParagraph implements ItextElement {
+
+	private static Log log = Log.get(Paragraph.class);
 
 	public Paragraph(APdfElement parent) {
 		super(parent);
@@ -30,32 +48,25 @@ public class Paragraph extends AParagraph implements ItextElement {
 		for (AParagraphElement element : getElements()) {
 			if (element instanceof TextChunk) {
 				TextChunk textChunk = (TextChunk) element;
-				FontStyle style = textChunk.getFontStyle();
-				Font font;
-				try {
-					font = new Font(BaseFont.createFont(style.getFont(), BaseFont.CP1252, BaseFont.EMBEDDED));
-				} catch (Exception ex) {
-					throw new RuntimeException(ex);
-				}
-				if (style.isItalic() && style.isBold()) {
-					font.setStyle(Font.BOLDITALIC);
-				} else if (style.isItalic()) {
-					font.setStyle(Font.ITALIC);
-				} else if (style.isBold()) {
-					font.setStyle(Font.BOLD);
-				}
-				font.setSize(PdfBuilder.mmToPoints(style.getSize()));
+				FontStyle fontStyle = textChunk.getFontStyle();
+
+				FontSelector fontSelector = createFontSelector(fontStyle.getFont(), fontStyle);
+
 				String text = textChunk.getText();
-				Chunk chunk = new Chunk(text, font);
-				Color color = style.getColor();
-				if (color != null) font.setColor(color);
-				chunk.setFont(font);
-				p.add(chunk);
-				float size = (style.getSize() * 1.1f) + 1f;
+				Phrase phrase = fontSelector.process(text);
+				p.add(phrase);
+
+				float size = (fontStyle.getSize() * 1.1f) + 1f;
 				if (size > maxSize) maxSize = PdfBuilder.mmToPoints(size);
 			} else if (element instanceof Image) {
 				Image image = (Image) element;
-				com.lowagie.text.Image itextImage = image.getITextElement();
+				com.lowagie.text.Image itextImage;
+				try {
+					itextImage = image.getITextElement();
+				} catch (Exception ex) {
+					log.warn("Including image failed:", image, ex);
+					continue;
+				}
 
 				if (image.getAlign() != null) {
 					itextImage.setAlignment(Image.convertAlign(image.getAlign()) | com.lowagie.text.Image.TEXTWRAP);
@@ -88,6 +99,52 @@ public class Paragraph extends AParagraph implements ItextElement {
 		return table;
 	}
 
+	private int createStyle(FontStyle fontStyle) {
+		int style = Font.NORMAL;
+		if (fontStyle.isItalic() && fontStyle.isBold()) {
+			style = Font.BOLDITALIC;
+		} else if (fontStyle.isItalic()) {
+			style = Font.ITALIC;
+		} else if (fontStyle.isBold()) {
+			style = Font.BOLD;
+		}
+		return style;
+	}
+
+	public FontSelector createFontSelector(String preferredFont, FontStyle fontStyle) {
+		FontSelector selector = new FontSelector();
+		selector.addFont(createFont(preferredFont, fontStyle));
+
+		// fallback from ilarkesto.jar
+		selector.addFont(createFont("fonts/HDZB_36.ttf", fontStyle)); // embeddable chinese
+
+		// fallback from iTextAsian.jar
+		selector.addFont(createFont("STSong-Light", fontStyle)); // simplified chinese
+		selector.addFont(createFont("MHei-Medium", fontStyle)); // traditional chinese
+		selector.addFont(createFont("HeiseiMin-W3", fontStyle)); // japanese
+		selector.addFont(createFont("KozMinPro-Regular", fontStyle)); // japanese
+		selector.addFont(createFont("HYGoThic-Medium", fontStyle)); // korean
+
+		return selector;
+	}
+
+	private Font createFont(String name, FontStyle fontStyle) {
+		Font font;
+		try {
+			font = new Font(BaseFont.createFont(name, BaseFont.IDENTITY_H, BaseFont.EMBEDDED));
+		} catch (Exception ex) {
+			throw new RuntimeException("Loading font failed: " + name, ex);
+		}
+
+		if (fontStyle != null) {
+			font.setStyle(createStyle(fontStyle));
+			font.setSize(PdfBuilder.mmToPoints(fontStyle.getSize()));
+			font.setColor(fontStyle.getColor());
+		}
+
+		return font;
+	}
+
 	@Override
 	public AImage image(byte[] data) {
 		Image i = new Image(this, data);
@@ -104,6 +161,10 @@ public class Paragraph extends AParagraph implements ItextElement {
 
 	private static int convertAlign(Align align) {
 		switch (align) {
+			case LEFT:
+				return com.lowagie.text.Paragraph.ALIGN_LEFT;
+			case CENTER:
+				return com.lowagie.text.Paragraph.ALIGN_CENTER;
 			case RIGHT:
 				return com.lowagie.text.Paragraph.ALIGN_RIGHT;
 		}

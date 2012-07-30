@@ -1,7 +1,23 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.client;
 
+import ilarkesto.core.base.Str;
+
 import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.event.dom.client.KeyPressHandler;
+import com.google.gwt.event.dom.client.KeyDownHandler;
 import com.google.gwt.user.client.ui.TextArea;
 import com.google.gwt.user.client.ui.Widget;
 
@@ -11,6 +27,8 @@ public class CodemirrorEditorWidget extends AWidget {
 	private TextArea textArea = new MyTextArea();
 	private JavaScriptObject editor;
 	private String height = "200px";
+	private Observer observer;
+	private boolean burned;
 
 	private native JavaScriptObject createEditor(String textAreaId, String height)
 	/*-{
@@ -43,8 +61,6 @@ public class CodemirrorEditorWidget extends AWidget {
 			return this.editor != null;
 		}
 		
-		editor.execute();
-		
 		return editor;
 	}-*/;
 
@@ -54,9 +70,12 @@ public class CodemirrorEditorWidget extends AWidget {
 	}
 
 	private void createEditor() {
+		if (burned) return;
 		if (editor == null) {
 			String text = textArea.getText();
-			editor = createEditor(textArea.getElement().getId(), height);
+			// Log.DEBUG("Creating editor for:", text);
+			String id = textArea.getElement().getId();
+			editor = createEditor(id, height);
 			setText(prepareText(text));
 			focus(editor);
 		}
@@ -77,13 +96,14 @@ public class CodemirrorEditorWidget extends AWidget {
 		// if (editor != null) focus(editor);
 	}
 
-	public void addKeyPressHandler(KeyPressHandler listener) {
+	public void addKeyDownHandler(KeyDownHandler listener) {
 		// TODO
 	}
 
 	public String getText() {
 		if (!isReady()) return textArea.getText();
 		String text = editorGetCode(editor);
+		if (Str.isBlank(text)) text = null;
 		textArea.setText(text);
 		return text;
 	}
@@ -168,12 +188,16 @@ public class CodemirrorEditorWidget extends AWidget {
 	    });
 	}-*/;
 
+	public void setObserver(Observer observer) {
+		this.observer = observer;
+	}
+
 	private class MyTextArea extends TextArea {
 
 		public MyTextArea() {
 			setWidth("100%");
 			getElement().setId("CodeMirror" + System.currentTimeMillis());
-			setVisible(false);
+			// setVisible(false);
 		}
 
 		@Override
@@ -188,8 +212,20 @@ public class CodemirrorEditorWidget extends AWidget {
 			// Log.DEBUG("-------- onDetach()");
 			textArea.setText(editorGetCode(editor));
 			editor = null;
+			burned = true;
 			super.onDetach();
+			if (observer != null) observer.onCodemirrorDetach();
 		}
+
+	}
+
+	public boolean isBurned() {
+		return burned;
+	}
+
+	public static interface Observer {
+
+		void onCodemirrorDetach();
 
 	}
 

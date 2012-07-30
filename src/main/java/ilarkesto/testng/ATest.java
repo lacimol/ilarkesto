@@ -1,4 +1,20 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.testng;
+
+import ilarkesto.core.logging.Log;
 
 import java.util.Collection;
 
@@ -7,6 +23,19 @@ import org.testng.Assert;
 public class ATest extends Assert {
 
 	public static final String OUTPUT_DIR = "test-output";
+	public static final String INPUT_DIR = "test-input";
+
+	protected Log log = Log.get(getClass());
+
+	public static void assertNotEquals(Object a, Object b) {
+		assertFalse(a.equals(b), "Objects expected not to be equal: <" + a + "> and <" + b + ">");
+	}
+
+	public static void assertSize(Collection collection, int expectedSize) {
+		assertNotNull(collection, "Collection expected to be not null");
+		assertEquals(collection.size(), expectedSize, "Collection size expected to be <" + expectedSize + ">, but is <"
+				+ collection.size() + ">: <" + collection + ">");
+	}
 
 	public static <T> void assertContains(String string, String substring) {
 		assertTrue(string.contains(substring), "<" + string + "> expected to contain <" + substring + ">");

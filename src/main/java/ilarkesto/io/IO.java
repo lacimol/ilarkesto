@@ -1,5 +1,20 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.io;
 
+import ilarkesto.base.Sys;
 import ilarkesto.io.zip.Deflater;
 import ilarkesto.io.zip.ZipEntry;
 import ilarkesto.io.zip.ZipFile;
@@ -34,20 +49,23 @@ import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
+import java.net.NetworkInterface;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
-import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
 import javax.net.ssl.HostnameVerifier;
@@ -69,6 +87,7 @@ public abstract class IO {
 
 	public static final String ISO_LATIN_1 = "ISO-8859-1";
 	public static final String UTF_8 = "UTF-8";
+	public static final String WINDOWS_1252 = "WINDOWS-1252";
 
 	private static LinkedList<Properties> properties = new LinkedList<Properties>();
 	private static LinkedList<File> propertiesFiles = new LinkedList<File>();
@@ -331,7 +350,7 @@ public abstract class IO {
 
 	public static String getFileExtension(String filename) {
 		int idx = filename.lastIndexOf('.');
-		if (idx < 0 || idx == filename.length() - 1) return filename;
+		if (idx < 0 || idx == filename.length() - 1) return null;
 		return filename.substring(idx + 1);
 	}
 
@@ -365,7 +384,8 @@ public abstract class IO {
 	}
 
 	public static String getHostName() {
-		String[] hostnames = getHostNames();
+		String[] hostnames = new String[0];
+		hostnames = getLocalHostNames(false, true).toArray(hostnames);
 		if (hostnames.length == 0) return null;
 		if (hostnames.length == 1) return hostnames[0];
 		for (int i = 0; i < hostnames.length; i++) {
@@ -374,24 +394,29 @@ public abstract class IO {
 		return hostnames[0];
 	}
 
-	public static String[] getHostNames() {
-		String localhostName;
+	public static Set<String> getLocalHostNames(boolean includeIps, boolean includeNames) {
+		if (!includeIps && !includeNames)
+			throw new IllegalArgumentException("includeIps=false && includeNames==false");
+		Set<String> ret = new HashSet<String>();
+		if (includeIps) ret.add("127.0.0.1");
+		if (includeNames) ret.add("localhost");
+		Enumeration<NetworkInterface> networks;
 		try {
-			localhostName = InetAddress.getLocalHost().getHostName();
-		} catch (UnknownHostException ex) {
-			throw new RuntimeException(ex);
+			networks = NetworkInterface.getNetworkInterfaces();
+		} catch (SocketException ex) {
+			return ret;
 		}
-		InetAddress ia[];
-		try {
-			ia = InetAddress.getAllByName(localhostName);
-		} catch (UnknownHostException ex) {
-			throw new RuntimeException(ex);
+		if (networks == null) return ret;
+		while (networks.hasMoreElements()) {
+			Enumeration<InetAddress> addresses = networks.nextElement().getInetAddresses();
+			if (addresses == null) continue;
+			while (addresses.hasMoreElements()) {
+				InetAddress address = addresses.nextElement();
+				if (includeIps) ret.add(address.getHostAddress());
+				if (includeNames) ret.add(address.getHostName());
+			}
 		}
-		String[] sa = new String[ia.length];
-		for (int i = 0; i < ia.length; i++) {
-			sa[i] = ia[i].getHostName();
-		}
-		return sa;
+		return ret;
 	}
 
 	public static URLConnection post(URL url, Map<String, String> parameters, String encoding, String username,
@@ -417,7 +442,8 @@ public abstract class IO {
 				"Basic " + Base64.encodeBytes((username + ":" + password).getBytes()));
 		}
 		connection.setDoOutput(true);
-		PrintWriter out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), encoding));
+		PrintWriter out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(),
+				encoding == null ? Sys.getFileEncoding() : encoding));
 		out.println(sb.toString());
 		out.println();
 		close(out);
@@ -778,7 +804,7 @@ public abstract class IO {
 		}
 
 		if (observer != null && observer.isAbortRequested()) {
-			IO.delete(tempFile);
+			delete(tempFile);
 		} else {
 			move(tempFile, zipfile);
 		}
@@ -985,6 +1011,26 @@ public abstract class IO {
 		return image.getScaledInstance(width, height, Image.SCALE_SMOOTH);
 	}
 
+	public static BufferedImage quadratize(BufferedImage image) {
+		int width = image.getWidth();
+		int height = image.getHeight();
+		if (width == height) return image;
+
+		if (width > height) {
+			int offset = (width - height) / 2;
+			return image.getSubimage(offset, 0, height, height);
+		} else {
+			int offset = (height - width) / 2;
+			return image.getSubimage(0, offset, width, width);
+		}
+	}
+
+	public static Image quadratizeAndLimitSize(BufferedImage image, int maxSize) {
+		image = quadratize(image);
+		if (image.getWidth() <= maxSize) return image;
+		return image.getScaledInstance(maxSize, maxSize, Image.SCALE_SMOOTH);
+	}
+
 	public static void copyDataToFile(byte[] data, File file) {
 		ByteArrayInputStream in = new ByteArrayInputStream(data);
 		copyDataToFile(in, file);
@@ -996,7 +1042,7 @@ public abstract class IO {
 		try {
 			is = connection.getInputStream();
 		} catch (IOException ex) {
-			throw new RuntimeException(ex);
+			throw new RuntimeException("Download failed: " + connection.getURL(), ex);
 		}
 		try {
 			copyDataToFile(is, file);
@@ -1034,7 +1080,7 @@ public abstract class IO {
 			throw new RuntimeException("Overwriting file '" + dst + "' failed.");
 		}
 		if (!tmp.renameTo(dst)) {
-			IO.delete(tmp);
+			delete(tmp);
 			throw new RuntimeException("Moving '" + tmp + "' to '" + dst + "' failed.");
 		}
 	}
@@ -1378,11 +1424,15 @@ public abstract class IO {
 	}
 
 	public static Properties loadProperties(File f, String encoding) {
-		BufferedInputStream in;
 		try {
-			in = new BufferedInputStream(new FileInputStream(f));
-			Properties p = loadProperties(in, encoding);
-			in.close();
+			Properties p;
+			if (f.exists()) {
+				BufferedInputStream in = new BufferedInputStream(new FileInputStream(f));
+				p = loadProperties(in, encoding);
+				in.close();
+			} else {
+				p = new Properties();
+			}
 			properties.add(p);
 			propertiesFiles.add(f);
 			return p;
@@ -1523,12 +1573,18 @@ public abstract class IO {
 	}
 
 	public static String downloadUrlToString(String url) {
-		return downloadUrlToString(url, null, null);
+		return downloadUrlToString(url, UTF_8);
 	}
 
-	public static String downloadUrlToString(String url, String username, String password) {
-		BufferedReader in = new BufferedReader(openUrlReader(url, username, password));
-		String s = IO.readToString(in);
+	public static String downloadUrlToString(String url, String charset) {
+		return downloadUrlToString(url, charset, null, null);
+	}
+
+	public static String downloadUrlToString(String url, String charset, String username, String password) {
+		InputStreamReader urlReader = openUrlReader(url, charset, username, password);
+		if (urlReader == null) return null;
+		BufferedReader in = new BufferedReader(urlReader);
+		String s = readToString(in);
 		close(in);
 		return s;
 	}
@@ -1581,12 +1637,15 @@ public abstract class IO {
 		}
 	}
 
-	public static Reader openUrlReader(String url, String username, String password) {
+	public static InputStreamReader openUrlReader(String url, String defaultEncoding, String username, String password) {
 		URLConnection connection = openUrlConnection(url, username, password);
-		String encoding = connection.getContentEncoding();
-		if (encoding == null) encoding = UTF_8;
+		String connectionEncoding = connection.getContentEncoding();
+		if (connectionEncoding != null) defaultEncoding = connectionEncoding;
+		if (defaultEncoding == null) defaultEncoding = UTF_8;
 		try {
-			return new InputStreamReader(connection.getInputStream(), encoding);
+			return new InputStreamReader(connection.getInputStream(), defaultEncoding);
+		} catch (FileNotFoundException ex) {
+			return null;
 		} catch (UnsupportedEncodingException ex) {
 			throw new RuntimeException(ex);
 		} catch (IOException ex) {
@@ -1613,7 +1672,7 @@ public abstract class IO {
 			}
 			connection.connect();
 			int length = connection.getContentLength();
-			if (observer != null && length > -1) observer.totalSizeDetermined(length);
+			if (observer != null && length > 0) observer.totalSizeDetermined(length);
 			in = connection.getInputStream();
 		} catch (Throwable ex) {
 			throw new RuntimeException(ex);
@@ -1666,7 +1725,7 @@ public abstract class IO {
 			try {
 				tempDir = File.createTempFile("dummy", ".tmp").getParentFile();
 			} catch (IOException ex) {
-				throw new RuntimeException(ex);
+				return null;
 			}
 		}
 		return tempDir;

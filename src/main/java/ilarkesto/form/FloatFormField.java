@@ -1,7 +1,20 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.form;
 
 import java.text.DecimalFormat;
-import java.text.ParseException;
 import java.util.Collection;
 import java.util.Map;
 
@@ -9,70 +22,101 @@ import org.apache.commons.fileupload.FileItem;
 
 public class FloatFormField extends AFormField {
 
-    private DecimalFormat format = new DecimalFormat("0.##");
-    private String value;
-    private int width = 10;
-    private String suffix;
+	private DecimalFormat format = new DecimalFormat("0.##");
+	private String sValue;
+	private Float fValue;
+	private int width = 10;
+	private String suffix;
 
-    public FloatFormField(String name) {
-        super(name);
-    }
+	public FloatFormField(String name) {
+		super(name);
+	}
 
-    public FloatFormField setSuffix(String suffix) {
-        this.suffix = suffix;
-        return this;
-    }
+	public FloatFormField setSuffix(String suffix) {
+		this.suffix = suffix;
+		return this;
+	}
 
-    public String getSuffix() {
-        return suffix;
-    }
+	public String getSuffix() {
+		return suffix;
+	}
 
-    public FloatFormField setWidth(int value) {
-        this.width = value;
-        return this;
-    }
+	public FloatFormField setWidth(int value) {
+		this.width = value;
+		return this;
+	}
 
-    public FloatFormField setValue(Float value) {
-        this.value = value == null ? null : format.format(value);
-        return this;
-    }
+	public FloatFormField setValue(Float value) {
+		fValue = value;
+		updateSValue();
+		return this;
+	}
 
-    public int getWidth() {
-        return width;
-    }
+	private void updateSValue() {
+		if (fValue == null) {
+			sValue = null;
+			return;
+		}
+		sValue = format.format(fValue);
+	}
 
-    public void update(Map<String, String> data, Collection<FileItem> uploadedFiles) {
-        value = data.get(getName());
-        if (value != null) {
-            value = value.trim();
-        }
-        if (value != null && value.length() == 0) {
-            value = null;
-        }
-    }
+	private void updateFValue() {
+		if (sValue == null) {
+			fValue = null;
+			return;
+		}
+		Float f = parse(sValue);
+		if (f != null) fValue = f;
+	}
 
-    public void validate() throws ValidationException {
-        if (value == null) {
-            if (isRequired()) throw new ValidationException("Eingabe erforderlich");
-        } else {
-            try {
-                format.parse(value);
-            } catch (Exception ex) {
-                throw new ValidationException("Hier wird eine Zahl erwartet");
-            }
-        }
-    }
+	private Float parse(String s) {
+		s = s.replace(".", "");
+		s = s.replace(',', '.');
+		try {
+			return Float.parseFloat(s);
+		} catch (Exception ex) {
+			return null;
+		}
+	}
 
-    public String getValueAsString() {
-        return value;
-    }
+	public int getWidth() {
+		return width;
+	}
 
-    public Float getValue() {
-        try {
-            return value == null ? null : format.parse(value).floatValue();
-        } catch (ParseException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
+	@Override
+	public void update(Map<String, String> data, Collection<FileItem> uploadedFiles) {
+		sValue = data.get(getName());
+		if (sValue != null) sValue = sValue.trim();
+		if (sValue != null && sValue.length() == 0) sValue = null;
+		updateFValue();
+	}
+
+	@Override
+	public void validate() throws ValidationException {
+		if (sValue == null) {
+			if (isRequired()) throw new ValidationException("Eingabe erforderlich");
+		} else {
+			if (parse(sValue) == null) throw new ValidationException("Zahl wurde nicht erkannt: " + sValue);
+		}
+	}
+
+	@Override
+	public String getValueAsString() {
+		return sValue;
+	}
+
+	public Float getValue() {
+		return fValue;
+	}
+
+	public FloatFormField setFormat(DecimalFormat format) {
+		this.format = format;
+		updateSValue();
+		return this;
+	}
+
+	public FloatFormField setFormat(String format) {
+		return setFormat(new DecimalFormat(format));
+	}
 
 }

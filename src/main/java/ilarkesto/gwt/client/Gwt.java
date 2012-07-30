@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.client;
 
 import ilarkesto.core.base.ToHtmlSupport;
@@ -45,6 +59,26 @@ public class Gwt {
 	private static DateTimeFormat dtfDay;
 	private static DateTimeFormat dtfWeekdayMonthDay;
 	private static DateTimeFormat dtfHourMinute;
+
+	public static boolean isWebkit() {
+		return isWebkitJs();
+	}
+
+	public static boolean isMsie() {
+		return GWT.isProdMode() ? isMsieJs() : false;
+	}
+
+	private static native boolean isMsieJs()
+	/*-{
+	    var agent = navigator.userAgent.toLowerCase();
+		return agent && agent.indexOf('msie') >= 0;
+	}-*/;
+
+	private static native boolean isWebkitJs()
+	/*-{
+	    var agent = navigator.userAgent.toLowerCase();
+		return agent && agent.indexOf('webkit') >= 0;
+	}-*/;
 
 	public static boolean contains(HasWidgets container, Widget widget) {
 		Iterator<Widget> iterator = container.iterator();
@@ -107,11 +141,17 @@ public class Gwt {
 		return button;
 	}
 
-	public static HTML addHtmlTooltip(SourcesMouseEvents widget, String tooltip) {
-		HTML html = new HTML(tooltip);
+	public static HTML addTooltipHtml(SourcesMouseEvents widget, String tooltipHtml) {
+		HTML html = new HTML(tooltipHtml);
 		TooltipListener listener = new TooltipListener(html);
 		widget.addMouseListener(listener);
 		return html;
+	}
+
+	public static <W extends Widget> W addTooltip(SourcesMouseEvents widget, W tooltipWidget) {
+		TooltipListener listener = new TooltipListener(tooltipWidget);
+		widget.addMouseListener(listener);
+		return tooltipWidget;
 	}
 
 	public static boolean confirm(String message) {
@@ -126,22 +166,6 @@ public class Gwt {
 		final Element div = DOM.createDiv();
 		DOM.setInnerText(div, maybeHtml);
 		return DOM.getInnerHTML(div);
-	}
-
-	// public static String escapeHtml(String s) {
-	// if (s == null) return null;
-	// s = s.replace("&", "&amp;");
-	// s = s.replace("<", "&lt;");
-	// s = s.replace(">", "&gt;");
-	// s = s.replace("\"", "&quot;");
-	// return s;
-	// }
-
-	public static boolean equals(Object a, Object b) {
-		if (a == b) return true;
-		if (a == null && b == null) return true;
-		if (a != null) return a.equals(b);
-		return b.equals(a);
 	}
 
 	public static UndoManager getUndoManager() {

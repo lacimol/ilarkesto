@@ -1,3 +1,12 @@
+/*
+ * Copyright unknown
+ * 
+ * I am placing this code in the Public Domain. Do with it as you will. This software comes with no guarantees
+ * or warranties but with plenty of well-wishing instead! Please visit <a
+ * href="http://iharder.net/base64">http://iharder.net/base64</a> periodically to check for updates or to
+ * contribute improvements.
+ */
+
 package ilarkesto.io;
 
 /**
@@ -71,13 +80,6 @@ package ilarkesto.io;
  * <li>v1.3.4 - Fixed when "improperly padded stream" error was thrown at the wrong time.</li>
  * <li>v1.3.3 - Fixed I/O streams which were totally messed up.</li>
  * </ul>
- * 
- * <p>
- * I am placing this code in the Public Domain. Do with it as you will. This software comes with no guarantees
- * or warranties but with plenty of well-wishing instead! Please visit <a
- * href="http://iharder.net/base64">http://iharder.net/base64</a> periodically to check for updates or to
- * contribute improvements.
- * </p>
  * 
  * @author Robert Harder
  * @author rob@iharder.net
@@ -856,7 +858,7 @@ public class Base64 {
 		catch (java.io.UnsupportedEncodingException uee) {
 			bytes = s.getBytes();
 		} // end catch
-		// </change>
+			// </change>
 
 		// Decode
 		bytes = decode(bytes, 0, bytes.length, options);

@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.persistence;
 
 import ilarkesto.base.Utl;
@@ -13,38 +27,49 @@ import java.util.Set;
 
 class Transaction implements IdentifiableResolver<AEntity> {
 
-	private static final Log LOG = Log.get(Transaction.class);
+	private static final Log log = Log.get(Transaction.class);
 
 	private static int count = 0;
+	private int no;
 
+	private EntityStore entityStore;
+
+	private String threadName;
 	private List<AEntity> entitiesToSave = new ArrayList<AEntity>();
-
 	private List<AEntity> entitiesToDelete = new ArrayList<AEntity>();
-
 	private List<AEntity> entitiesRegistered = new ArrayList<AEntity>();
+
+	public Transaction(EntityStore entityStore) {
+		synchronized (getClass()) {
+			no = ++count;
+		}
+		this.entityStore = entityStore;
+		threadName = Thread.currentThread().getName();
+	}
 
 	/**
 	 * avoids infinite loops within <code>ensureIntegrity()</code>
 	 */
 	private AEntity currentlySaving;
 
-	public synchronized void saveEntity(AEntity entity) {
+	synchronized void saveEntity(AEntity entity) {
+		if (entity == null) throw new NullPointerException("entity");
 		if (currentlySaving == entity) return;
 		currentlySaving = entity;
 		if (entitiesToSave.contains(entity) || entitiesToDelete.contains(entity)) return;
-		LOG.debug("SAVE", Utl.toStringWithType(entity), "@", this);
+		log.debug("SAVE", toStringWithType(entity), "@", this);
 		entitiesToSave.add(entity);
 		currentlySaving = null;
 	}
 
-	public synchronized void deleteEntity(AEntity entity) {
+	synchronized void deleteEntity(AEntity entity) {
 		if (entitiesToDelete.contains(entity)) return;
-		LOG.debug("DELETE", Utl.toStringWithType(entity), "@", this);
+		log.debug("DELETE", toStringWithType(entity), "@", this);
 		entitiesToDelete.add(entity);
 		entitiesToSave.remove(entity);
 	}
 
-	public synchronized void registerEntity(AEntity entity) {
+	synchronized void registerEntity(AEntity entity) {
 		entitiesRegistered.add(entity);
 	}
 
@@ -55,9 +80,9 @@ class Transaction implements IdentifiableResolver<AEntity> {
 		committed = true;
 
 		if (isEmpty()) {
-			LOG.debug("Committing empty transaction:", this);
+			log.debug("Committing empty transaction:", this);
 		} else {
-			LOG.info("Committing transaction:", this);
+			log.info("Committing transaction:", this);
 		}
 
 		Collection<AEntity> savedEntities = new HashSet<AEntity>(entitiesToSave.size());
@@ -72,6 +97,7 @@ class Transaction implements IdentifiableResolver<AEntity> {
 			for (AEntity entity : new ArrayList<AEntity>(entitiesToDelete)) {
 				entityStore.delete(entity);
 				entitiesToDelete.remove(entity);
+				savedEntities.remove(entity);
 			}
 
 			for (AEntity entity : savedEntities) {
@@ -81,10 +107,22 @@ class Transaction implements IdentifiableResolver<AEntity> {
 
 		entitiesRegistered.clear();
 
-		LOG.debug("Transaction committed:", this);
+		log.debug("Transaction committed:", this);
 	}
 
-	public synchronized boolean isEmpty() {
+	synchronized boolean isPersistent(String id) {
+		AEntity result = entityStore.getById(id);
+		if (result != null) return true;
+
+		for (AEntity entity : entitiesToSave) {
+			if (id.equals(entity.getId())) return true;
+		}
+
+		// ignore registeredEntities!
+		return false;
+	}
+
+	synchronized boolean isEmpty() {
 		return entitiesToDelete.isEmpty() && entitiesToSave.isEmpty();
 	}
 
@@ -107,7 +145,7 @@ class Transaction implements IdentifiableResolver<AEntity> {
 		return result;
 	}
 
-	public synchronized Set<AEntity> getEntities(Predicate<Class> typeFilter, Predicate<AEntity> entityFilter) {
+	synchronized Set<AEntity> getEntities(Predicate<Class> typeFilter, Predicate<AEntity> entityFilter) {
 		Set<AEntity> result = entityStore.getEntities(typeFilter, entityFilter);
 		for (AEntity entity : entitiesToSave) {
 			if (Persist.test(entity, typeFilter, entityFilter)) result.add(entity);
@@ -119,7 +157,7 @@ class Transaction implements IdentifiableResolver<AEntity> {
 		return result;
 	}
 
-	public int getEntitiesCount(Predicate<Class> typeFilter, Predicate<AEntity> entityFilter) {
+	int getEntitiesCount(Predicate<Class> typeFilter, Predicate<AEntity> entityFilter) {
 		return entityStore.getEntitiesCount(typeFilter, entityFilter);
 	}
 
@@ -139,7 +177,7 @@ class Transaction implements IdentifiableResolver<AEntity> {
 		return result;
 	}
 
-	public synchronized AEntity getEntity(Predicate<Class> typeFilter, Predicate<AEntity> entityFilter) {
+	synchronized AEntity getEntity(Predicate<Class> typeFilter, Predicate<AEntity> entityFilter) {
 		AEntity result = entityStore.getEntity(typeFilter, entityFilter);
 		if (result == null) {
 			for (AEntity entity : entitiesToSave) {
@@ -186,18 +224,12 @@ class Transaction implements IdentifiableResolver<AEntity> {
 		return sb.toString();
 	}
 
-	// --- dependencies ---
-
-	private EntityStore entityStore;
-	private int no;
-	private String threadName;
-
-	public Transaction(EntityStore entityStore) {
-		synchronized (getClass()) {
-			no = ++count;
+	private String toStringWithType(Object o) {
+		try {
+			return Utl.toStringWithType(o);
+		} catch (Exception ex) {
+			return o.getClass().getSimpleName();
 		}
-		this.entityStore = entityStore;
-		threadName = Thread.currentThread().getName();
 	}
 
 }

@@ -1,6 +1,21 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.client.editor;
 
 import ilarkesto.core.base.Str;
+import ilarkesto.core.logging.Log;
 import ilarkesto.gwt.client.AAction;
 import ilarkesto.gwt.client.AViewEditWidget;
 import ilarkesto.gwt.client.CodemirrorEditorWidget;
@@ -11,8 +26,9 @@ import ilarkesto.gwt.client.ToolbarWidget;
 
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.KeyCodes;
-import com.google.gwt.event.dom.client.KeyPressEvent;
-import com.google.gwt.event.dom.client.KeyPressHandler;
+import com.google.gwt.event.dom.client.KeyDownEvent;
+import com.google.gwt.event.dom.client.KeyDownHandler;
+import com.google.gwt.user.client.ui.AttachDetachException;
 import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.FocusListener;
 import com.google.gwt.user.client.ui.HTML;
@@ -22,13 +38,15 @@ import com.google.gwt.user.client.ui.Widget;
 
 public class RichtextEditorWidget extends AViewEditWidget {
 
+	private static Log log = Log.get(RichtextEditorWidget.class);
+
 	private HTML viewer;
 	private SimplePanel editorWrapper;
 	private CodemirrorEditorWidget editor;
 	private String editorHeight = "300px";
 	private ToolbarWidget editorToolbar;
-	private String applyButtonLabel = "Apply";
-	private String restoreText;
+	private String applyButtonLabel;
+	private boolean autosave = true;
 
 	private ATextEditorModel model;
 	private ToolbarWidget bottomToolbar;
@@ -39,16 +57,36 @@ public class RichtextEditorWidget extends AViewEditWidget {
 	}
 
 	@Override
+	protected void onUpdate() {
+		if (editor != null && editor.isBurned()) {
+			editor = null;
+			closeEditor();
+			return;
+		}
+		super.onUpdate();
+	}
+
+	@Override
 	protected void onViewerUpdate() {
 		setViewerText(model.getValue());
 	}
 
 	@Override
 	protected void onEditorUpdate() {
+		if (editor != null && editor.isBurned()) editor = null;
 		if (editor == null) {
 			editor = new CodemirrorEditorWidget();
+			// editor.setObserver(new CodemirrorEditorWidget.Observer() {
+			//
+			// @Override
+			// public void onCodemirrorDetach() {
+			// editorWrapper.setWidget(null);
+			// editor = null;
+			// switchToViewMode(false);
+			// }
+			// });
 			// editor.addFocusListener(new EditorFocusListener());
-			editor.addKeyPressHandler(new EditorKeyboardListener());
+			editor.addKeyDownHandler(new EditorKeyboardListener());
 			editor.ensureDebugId("richtext-id");
 			editor.setStyleName("ARichtextViewEditWidget-editor");
 			// editor.setWidth("97%");
@@ -68,7 +106,7 @@ public class RichtextEditorWidget extends AViewEditWidget {
 
 	@Override
 	protected void focusEditor() {
-		editor.focus();
+		if (editor != null) editor.focus();
 	}
 
 	@Override
@@ -77,12 +115,10 @@ public class RichtextEditorWidget extends AViewEditWidget {
 		// TODO check lenght
 		// TODO check format/syntax
 		model.changeValue(value);
-		// TODO catch exceptions
 	}
 
 	@Override
 	protected final Widget onViewerInitialization() {
-		// viewer = new Label();
 		viewer = new HTML();
 		viewer.setStyleName("ARichtextViewEditWidget-viewer");
 		return viewer;
@@ -93,13 +129,21 @@ public class RichtextEditorWidget extends AViewEditWidget {
 		if (syntaxInfoHtml != null) {
 			Label syntaxInfo = new Label("Syntax Info");
 			syntaxInfo.getElement().getStyle().setMargin(5, Unit.PX);
-			Gwt.addHtmlTooltip(syntaxInfo, syntaxInfoHtml);
+			Gwt.addTooltipHtml(syntaxInfo, syntaxInfoHtml);
 			toolbar.add(syntaxInfo);
 		}
 	}
 
 	public void setApplyButtonLabel(String applyButtonLabel) {
 		this.applyButtonLabel = applyButtonLabel;
+	}
+
+	public void setAutosave(boolean autosave) {
+		this.autosave = autosave;
+	}
+
+	public boolean isAutosave() {
+		return autosave;
 	}
 
 	@Override
@@ -114,7 +158,9 @@ public class RichtextEditorWidget extends AViewEditWidget {
 
 			@Override
 			public String getLabel() {
-				return applyButtonLabel;
+				String label = applyButtonLabel;
+				if (Str.isBlank(label)) label = autosave ? "Finish" : "Apply";
+				return label;
 			}
 
 			@Override
@@ -122,19 +168,20 @@ public class RichtextEditorWidget extends AViewEditWidget {
 				submitEditor();
 			}
 		});
-		bottomToolbar.addButton(new AAction() {
+		if (!autosave) {
+			bottomToolbar.addButton(new AAction() {
 
-			@Override
-			public String getLabel() {
-				return "Cancel";
-			}
+				@Override
+				public String getLabel() {
+					return "Cancel";
+				}
 
-			@Override
-			protected void onExecute() {
-				cancelEditor();
-			}
-		});
-		bottomToolbar.addHyperlink(new RestoreAction());
+				@Override
+				protected void onExecute() {
+					cancelEditor();
+				}
+			});
+		}
 
 		// toolbar.add(Gwt
 		// .createHyperlink("http://en.wikipedia.org/wiki/Wikipedia:Cheatsheet", "Syntax Cheatsheet", true));
@@ -156,14 +203,10 @@ public class RichtextEditorWidget extends AViewEditWidget {
 	protected void onEditorClose() {
 		super.onEditorClose();
 		editor = null;
-		editorWrapper.clear();
-	}
-
-	@Override
-	protected void onSwitchToEditModeCompleted() {
-		super.onSwitchToEditModeCompleted();
-		if (!Str.isBlank(restoreText)) {
-			onEditorUpdate();
+		try {
+			editorWrapper.clear();
+		} catch (AttachDetachException ex) {
+			log.error(ex);
 		}
 	}
 
@@ -191,16 +234,18 @@ public class RichtextEditorWidget extends AViewEditWidget {
 
 	@Override
 	protected void closeEditor() {
-		boolean submit = Gwt.confirm("You have an open rich text editor. Apply changes?");
-		if (submit) {
+		if (autosave) {
 			submitEditor();
 		} else {
-			cancelEditor();
+			super.closeEditor();
 		}
 	}
 
 	public final String getEditorText() {
-		return editor.getText();
+		if (editor == null) return null;
+		String text = editor.getText();
+		if (Str.isBlank(text)) return null;
+		return text;
 	}
 
 	@Override
@@ -235,10 +280,6 @@ public class RichtextEditorWidget extends AViewEditWidget {
 		return model;
 	}
 
-	public void setRestoreText(String restoreText) {
-		this.restoreText = restoreText;
-	}
-
 	private class EditorFocusListener implements FocusListener {
 
 		@Override
@@ -251,11 +292,11 @@ public class RichtextEditorWidget extends AViewEditWidget {
 
 	}
 
-	private class EditorKeyboardListener implements KeyPressHandler {
+	private class EditorKeyboardListener implements KeyDownHandler {
 
 		@Override
-		public void onKeyPress(KeyPressEvent event) {
-			char keyCode = event.getCharCode();
+		public void onKeyDown(KeyDownEvent event) {
+			int keyCode = event.getNativeKeyCode();
 
 			if (keyCode == KeyCodes.KEY_ESCAPE) {
 				cancelEditor();
@@ -270,33 +311,6 @@ public class RichtextEditorWidget extends AViewEditWidget {
 			}
 		}
 
-	}
-
-	private class RestoreAction extends AAction {
-
-		@Override
-		public String getLabel() {
-			return "Restore lost text";
-		}
-
-		@Override
-		public String getTooltip() {
-			String preview = restoreText;
-			if (restoreText != null && restoreText.length() > 100) preview = restoreText.substring(0, 100) + "...";
-			return "Restore text, which was not saved: \"" + preview + "\"";
-		}
-
-		@Override
-		public boolean isExecutable() {
-			return !Str.isBlank(restoreText);
-		}
-
-		@Override
-		protected void onExecute() {
-			editor.setText(restoreText);
-			restoreText = null;
-			bottomToolbar.update();
-		}
 	}
 
 }

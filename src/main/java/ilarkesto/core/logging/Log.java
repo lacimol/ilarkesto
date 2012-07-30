@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.core.logging;
 
 import ilarkesto.core.base.Str;
@@ -10,7 +24,7 @@ public class Log {
 	private static final Log ANONYMOUS = new Log("?");
 	private static final Map<String, Log> LOGGERS = new HashMap<String, Log>();
 	private static boolean debugEnabled = true;
-	private static LogRecordHandler logRecordHandler = new PrintStreamLogDataHandler(System.err);
+	private static LogRecordHandler logRecordHandler = new PrintStreamLogRecordHandler(System.err);
 
 	private String name;
 
@@ -19,6 +33,8 @@ public class Log {
 	}
 
 	public void log(Level level, Object... parameters) {
+		if (logRecordHandler == null) return;
+		if (level.isDebug() && !isDebugEnabled()) return;
 		logRecordHandler.log(new LogRecord(name, level, parameters));
 	}
 
@@ -102,12 +118,24 @@ public class Log {
 		ANONYMOUS.debug(s);
 	}
 
-	public static void setLogRecordHandler(LogRecordHandler logDataHandler) {
-		Log.logRecordHandler = logDataHandler;
+	public static void setLogRecordHandler(LogRecordHandler handler) {
+		Log.logRecordHandler = handler;
 	}
 
 	public static enum Level {
 		DEBUG, INFO, WARN, ERROR, FATAL;
+
+		public boolean isDebug() {
+			return this == DEBUG;
+		}
+
+		public boolean isInfo() {
+			return this == INFO;
+		}
+
+		public boolean isWarn() {
+			return this == WARN;
+		}
 
 		public boolean isWarnOrWorse() {
 			return isErrorOrWorse() || (this == WARN);

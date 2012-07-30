@@ -1,5 +1,20 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.persistence;
 
+import ilarkesto.base.Utl;
 import ilarkesto.base.time.Date;
 import ilarkesto.core.base.Str;
 import ilarkesto.core.logging.Log;
@@ -26,8 +41,11 @@ public class FileEntityStore implements EntityStore {
 
 	private static final Log LOG = Log.get(FileEntityStore.class);
 
+	public static String CLUSTER_FILE_NAME = "cluster.xml";
+
 	private boolean versionSaved;
 	private boolean versionChecked;
+	private boolean locked;
 
 	// --- dependencies ---
 
@@ -65,7 +83,23 @@ public class FileEntityStore implements EntityStore {
 	// --- ---
 
 	@Override
+	public synchronized void lock() {
+		if (locked) return;
+		locked = true;
+		LOG.info("File entity store locked.");
+	}
+
+	@Override
+	public void unlock() {
+		if (!locked) return;
+		locked = false;
+		LOG.info("File entity store unlocked.");
+	}
+
+	@Override
 	public synchronized void save(AEntity entity) {
+		sleepWhileLocked();
+
 		if (!versionSaved) saveVersion();
 
 		String alias = aliases.get(entity.getClass());
@@ -105,6 +139,8 @@ public class FileEntityStore implements EntityStore {
 
 	@Override
 	public synchronized void delete(AEntity entity) {
+		sleepWhileLocked();
+
 		String alias = aliases.get(entity.getClass());
 		File file = new File(dir + "/" + alias + "/" + entity.getId() + ".xml");
 
@@ -120,6 +156,12 @@ public class FileEntityStore implements EntityStore {
 		getDao(entity.getClass()).remove(entity.getId());
 
 		LOG.debug("Entity deleted:", file.getPath(), entity.getClass().getSimpleName(), entity);
+	}
+
+	private void sleepWhileLocked() {
+		while (locked) {
+			Utl.sleep(100);
+		}
 	}
 
 	private Map<String, AEntity> getDao(Class<? extends AEntity> type) {
@@ -214,33 +256,60 @@ public class FileEntityStore implements EntityStore {
 
 		beanSerializer.setAlias(alias, cls);
 
-		File f = new File(dir + "/" + alias);
-		LOG.info("Loading entities:", alias);
-		// if (!f.exists()) {
-		// LOG.warn("Store directory does not exist. creating:", dir);
-		// if (!f.mkdirs()) throw new RuntimeException("Creating store directory failed: " + dir);
-		// }
-		int count = 0;
-		File[] files = f.listFiles();
-		if (files != null) {
+		File entitiesDir = new File(dir + "/" + alias);
+
+		File clusterFile = new File(dir + "/" + CLUSTER_FILE_NAME);
+		if (clusterFile.exists()) {
+			loadCluster(clusterFile, entities, cls, alias);
+		}
+
+		File[] files = entitiesDir.listFiles();
+		int count = files == null ? 0 : files.length;
+		LOG.info("Loading", count, "entitiy files:", alias);
+		if (count > 0) {
 			for (int i = 0; i < files.length; i++) {
+				File file = files[i];
+				String filename = file.getName();
+
+				if (filename.equals(CLUSTER_FILE_NAME)) continue;
+				if (!filename.endsWith(".xml")) {
+					LOG.warn("Unsupported file. Skipping:", filename);
+					continue;
+				}
+
 				try {
-					if (loadObject(files[i], entities, cls, alias)) count++;
+					loadObject(file, entities, cls, alias);
 				} catch (Throwable ex) {
-					throw new RuntimeException("Loading object from " + files[i] + " failed", ex);
+					throw new RuntimeException("Loading object from " + file + " failed", ex);
 				}
 			}
 		}
 		// LOG.info(" Loaded entities:", alias, count);
 	}
 
-	private boolean loadObject(File file, Map<String, AEntity> entities, Class type, String alias) {
-		String name = file.getName();
-		if (!name.endsWith(".xml")) {
-			LOG.warn("Unsupported file. Skipping:", name);
-			return false;
+	private void loadCluster(File file, Map<String, AEntity> container, Class type, String alias) {
+		if (entityfilePreparator != null) entityfilePreparator.prepareClusterfile(file, type, alias);
+
+		BufferedInputStream in;
+		try {
+			in = new BufferedInputStream(new FileInputStream(file));
+		} catch (FileNotFoundException ex) {
+			throw new RuntimeException(ex);
+		}
+		Collection<AEntity> entities = (Collection<AEntity>) beanSerializer.deserialize(in);
+
+		for (AEntity entity : entities) {
+			container.put(entity.getId(), entity);
 		}
 
+		try {
+			in.close();
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+
+	private void loadObject(File file, Map<String, AEntity> container, Class type, String alias) {
 		if (entityfilePreparator != null) entityfilePreparator.prepareEntityfile(file, type, alias);
 
 		BufferedInputStream in;
@@ -250,13 +319,12 @@ public class FileEntityStore implements EntityStore {
 			throw new RuntimeException(ex);
 		}
 		AEntity entity = (AEntity) beanSerializer.deserialize(in);
-		entities.put(entity.getId(), entity);
+		container.put(entity.getId(), entity);
 		try {
 			in.close();
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
-		return true;
 	}
 
 	private void backup(File src, String type) {
@@ -296,6 +364,29 @@ public class FileEntityStore implements EntityStore {
 				: new Properties();
 		properties.setProperty("version", String.valueOf(version));
 		IO.saveProperties(properties, getClass().getName(), propertiesFile);
+	}
+
+	@Override
+	public void deleteOldBackups() {
+		if (Str.isBlank(backupDir)) return;
+		File[] dirs = new File(backupDir).listFiles();
+		if (dirs == null || dirs.length == 0) return;
+		Date deadline = Date.beforeDays(7);
+		LOG.info("Deleting temporary entity backups from before", deadline);
+		for (File dir : dirs) {
+			if (!dir.isDirectory()) continue;
+			String name = dir.getName();
+			Date date = null;
+			try {
+				date = new Date(name);
+			} catch (Throwable ex) {
+				continue;
+			}
+			if (date.isBefore(deadline)) {
+				LOG.debug("    Deleting temporary enity backups:", name);
+				IO.delete(dir);
+			}
+		}
 	}
 
 	private File getPropertiesFile() {

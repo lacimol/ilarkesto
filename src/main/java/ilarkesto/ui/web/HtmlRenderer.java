@@ -1,9 +1,25 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.ui.web;
 
 import ilarkesto.base.Str;
 import ilarkesto.base.Url;
+import ilarkesto.base.Utl;
 import ilarkesto.id.CountingIdGenerator;
 import ilarkesto.id.IdGenerator;
+import ilarkesto.integration.links.MultiLinkConverter;
 
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -48,8 +64,8 @@ public class HtmlRenderer {
 
 	private static final String IFRAME = "iframe";
 
-	public void IFRAME(String src, String height) {
-		Tag tag = startTag(IFRAME).set("src", src).set("frameborder", 0).setWidth("100%").set("height", height);
+	public void IFRAME(String src, String id, String height) {
+		startTag(IFRAME).set("src", src).setId(id).set("frameborder", 0).setWidth("100%").set("height", height);
 		A(src, src);
 		endTag(IFRAME);
 	}
@@ -57,6 +73,12 @@ public class HtmlRenderer {
 	// --- TEXTAREA ---
 
 	private static final String TEXTAREA = "textarea";
+
+	public void TEXTAREA(String name, String id, String text) {
+		startTag(TEXTAREA).set("name", name).setId(id);
+		html(text);
+		endTag(TEXTAREA);
+	}
 
 	public void TEXTAREA(String name, String id, String text, Integer cols, int rows, boolean wysiwyg, String width) {
 		Tag tag = startTag(TEXTAREA).set("name", name).setId(id).set("rows", rows).set("cols", cols)
@@ -104,6 +126,18 @@ public class HtmlRenderer {
 		startLI();
 		text(text);
 		endLI();
+	}
+
+	// --- STRONG ---
+
+	private static final String STRONG = "strong";
+
+	public Tag startSTRONG() {
+		return startTag(STRONG);
+	}
+
+	public void endSTRONG() {
+		endTag(STRONG);
 	}
 
 	// --- EM ---
@@ -215,6 +249,16 @@ public class HtmlRenderer {
 
 	private static final String BUTTON = "button";
 
+	private static final String FIELDSET = "fieldset";
+
+	public Tag startFIELDSET() {
+		return startTag(FIELDSET);
+	}
+
+	public void endFIELDSET() {
+		endTag(FIELDSET);
+	}
+
 	public Tag startFORM(Url actionUrl, String name, boolean multipart) {
 		return startFORM(actionUrl, "post", name, multipart);
 	}
@@ -233,8 +277,12 @@ public class HtmlRenderer {
 		endTag(FORM);
 	}
 
-	public void startSELECT(String name, int size) {
-		startTag(SELECT, true).setName(name).set("size", size);
+	public Tag startSELECT(String name) {
+		return startTag(SELECT, true).setName(name);
+	}
+
+	public Tag startSELECT(String name, Integer size) {
+		return startSELECT(name).set("size", size);
 	}
 
 	public void endSELECT() {
@@ -246,6 +294,14 @@ public class HtmlRenderer {
 		if (selected) tag.set("selected", "true");
 		text(text);
 		endTag(OPTION);
+	}
+
+	public Tag startINPUT(String type, String name) {
+		return startTag(INPUT).set("type", type).setName(name);
+	}
+
+	public void endINPUT() {
+		endTag(INPUT);
 	}
 
 	public void INPUTreset(String value, String onclick) {
@@ -319,19 +375,12 @@ public class HtmlRenderer {
 	}
 
 	public void INPUTcheckbox(String name, boolean checked) {
-		Tag tag = INPUT("checkbox", name, "true").setClass("inputCheckbox");
-		if (checked) {
-			tag.set("checked", "checked");
-		}
+		INPUTcheckbox(null, name, checked);
 	}
 
 	public void INPUTcheckbox(String name, boolean checked, String text) {
-		Tag tag = INPUT("checkbox", name, "true").setClass("inputCheckbox");
-		if (checked) {
-			tag.set("checked", "checked");
-		}
 		String id = "cb_" + name;
-		tag.setId(id);
+		INPUTcheckbox(id, name, checked);
 		LABEL(id, text);
 	}
 
@@ -400,8 +449,10 @@ public class HtmlRenderer {
 		// out.println("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"
 		// \"http://www.w3.org/TR/html4/loose.dtd\">");
 		// out.println("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">");
-		out.print("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">");
-		startTag(HTML);
+		// out.print("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">");
+		// startTag(HTML);
+
+		startHTMLstandard();
 	}
 
 	public void startHTMLstandard() {
@@ -431,6 +482,14 @@ public class HtmlRenderer {
 
 	public void META(String httpEquiv, String content) {
 		startTag(META, true).set("http-equiv", httpEquiv).set("content", content);
+		endShortTag();
+	}
+
+	public void METAviewport(String width, Integer initialScale) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("width=").append(width);
+		sb.append(", initial-scale=").append(initialScale);
+		startTag(META, true).set("name", "viewport").set("content", sb.toString());
 		endShortTag();
 	}
 
@@ -474,6 +533,10 @@ public class HtmlRenderer {
 
 	public void SCRIPTdojo() {
 		SCRIPTjavascript("http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojo/dojo.xd.js", null);
+	}
+
+	public void SCRIPTjquery() {
+		SCRIPTjavascript("http://ajax.googleapis.com/ajax/libs/jquery/1.5.1/jquery.min.js", null);
 	}
 
 	public Tag startBODY() {
@@ -552,17 +615,6 @@ public class HtmlRenderer {
 
 	public Tag startDIV() {
 		return startTag(DIV, true);
-	}
-
-	public void startDIVwithHint(String clazz, String content) {
-		Tag tag = startDIV(clazz);
-		if (content == null) return;
-
-		String hintDivId = hintIdGenerator.generateId();
-		tag.setOnmouseover("showHint('" + hintDivId + "')").setOnmouseout("hideHint()");
-		startDIV("hint").setId(hintDivId).setStyle("display: none;");
-		text(content);
-		endDIV();
 	}
 
 	public void endDIV() {
@@ -768,6 +820,12 @@ public class HtmlRenderer {
 		endTH();
 	}
 
+	public void nbsp(int count) {
+		for (int i = 0; i < count; i++) {
+			nbsp();
+		}
+	}
+
 	// --- core ---
 
 	public void nbsp() {
@@ -803,25 +861,47 @@ public class HtmlRenderer {
 		return tag;
 	}
 
-	public void text(String text) {
+	public void textEm(Object text) {
+		startEM();
+		text(text);
+		endEM();
+	}
+
+	public void textStrong(Object text) {
+		startSTRONG();
+		text(text);
+		endSTRONG();
+	}
+
+	public void text(Object text) {
 		text(text, false);
 	}
 
-	public void text(String text, boolean activateLinks) {
+	public void text(Object text, boolean activateLinks) {
 		closeStartingTag();
 		if (text != null) {
-			if (text.startsWith("<html>")) {
-				if (text.length() > 6) {
-					text = text.substring(6);
-					if (activateLinks) text = Str.activateLinksInHtml(text);
-					out.print(text);
+			String s;
+			if (text instanceof String) {
+				s = (String) text;
+			} else {
+				try {
+					s = text.toString();
+				} catch (Throwable ex) {
+					s = "<ERROR: " + Utl.getRootCause(ex).getMessage() + ">";
+				}
+			}
+			if (s.startsWith("<html>")) {
+				if (s.length() > 6) {
+					s = s.substring(6);
+					if (activateLinks) s = Str.activateLinksInHtml(s, MultiLinkConverter.ALL);
+					out.print(s);
 				}
 			} else {
-				text = Str.replaceForHtml(text);
+				s = Str.toHtml(s);
 				// text = StringEscapeUtils.escapeHtml(text);
 				// text = text.replace("\n", "<BR/>");
-				if (activateLinks) text = Str.activateLinksInHtml(text);
-				out.print(text);
+				if (activateLinks) s = Str.activateLinksInHtml(s, MultiLinkConverter.ALL);
+				out.print(s);
 			}
 		}
 	}
@@ -873,6 +953,10 @@ public class HtmlRenderer {
 		}
 	}
 
+	public String getEncoding() {
+		return encoding;
+	}
+
 	public static final String VALIGN_TOP = "top";
 
 	public static final String ALIGN_RIGHT = "right";
@@ -903,6 +987,10 @@ public class HtmlRenderer {
 
 		public Tag setId(String value) {
 			return set("id", value);
+		}
+
+		public Tag setValue(String value) {
+			return set("value", value);
 		}
 
 		public Tag setSrc(String value) {
@@ -990,12 +1078,20 @@ public class HtmlRenderer {
 			return set("rowspan", value);
 		}
 
+		public Tag setDataRole(String value) {
+			return set("data-role", value);
+		}
+
+		public Tag setDataIcon(String value) {
+			return set("data-icon", value);
+		}
+
 		private Tag set(String name, Character value) {
 			if (value == null) return this;
 			return set(name, value.toString());
 		}
 
-		public Tag set(String name, Integer value) {
+		public Tag set(String name, Object value) {
 			if (value == null) return this;
 			return set(name, String.valueOf(value));
 		}

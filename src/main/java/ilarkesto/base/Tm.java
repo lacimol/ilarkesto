@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.base;
 
 import java.text.SimpleDateFormat;
@@ -8,19 +22,9 @@ import java.util.TimeZone;
 /**
  * Utilitiy methods for dealing with date and time. Current month, year. Date comparsions.
  */
-public final class Tm {
+public final class Tm extends ilarkesto.core.time.Tm {
 
 	private Tm() {}
-
-	public static final long SECOND = 1000;
-
-	public static final long MINUTE = SECOND * 60;
-
-	public static final long HOUR = MINUTE * 60;
-
-	public static final long DAY = HOUR * 24;
-
-	public static final long WEEK = DAY * 7;
 
 	public static final String[] MONTHS_DE = new String[] { "Januar", "Februar", "M\u00E4rz", "April", "Mai", "Juni",
 			"Juli", "August", "September", "Oktober", "November", "Dezember" };
@@ -50,6 +54,27 @@ public final class Tm {
 	public static final SimpleDateFormat TIME_SHORT_DE = new SimpleDateFormat("HH:mm");
 
 	public static final TimeZone TZ_BERLIN = TimeZone.getTimeZone("Europe/Berlin");
+	public static final TimeZone TZ_GMT = TimeZone.getTimeZone("GMT");
+
+	public static Date toUtc(Date date) {
+		return toUtc(date, TimeZone.getDefault());
+	}
+
+	public static Date toUtc(Date date, TimeZone timeZone) {
+		long millis = date.getTime();
+		int offset = timeZone.getOffset(millis);
+		return new Date(millis - offset);
+	}
+
+	public static Date toTimeZone(Date date, TimeZone timeZone) {
+		long millis = date.getTime();
+		int offset = timeZone.getOffset(millis);
+		return new Date(millis + offset);
+	}
+
+	public static Date toLocalTime(Date date) {
+		return toTimeZone(date, TZ_GMT);
+	}
 
 	public static boolean isSameDay(Date day1, Date day2) {
 		return getDayBegin(day1).equals(getDayBegin(day2));

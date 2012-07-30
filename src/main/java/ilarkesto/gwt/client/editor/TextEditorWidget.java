@@ -1,19 +1,36 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.client.editor;
 
 import ilarkesto.core.base.Str;
 import ilarkesto.gwt.client.AViewEditWidget;
+import ilarkesto.gwt.client.Gwt;
+import ilarkesto.gwt.client.RichtextFormater;
 
 import com.google.gwt.event.dom.client.KeyCodes;
-import com.google.gwt.event.dom.client.KeyPressEvent;
-import com.google.gwt.event.dom.client.KeyPressHandler;
+import com.google.gwt.event.dom.client.KeyDownEvent;
+import com.google.gwt.event.dom.client.KeyDownHandler;
 import com.google.gwt.user.client.ui.FocusListener;
+import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
 
 public class TextEditorWidget extends AViewEditWidget {
 
-	private Label viewer;
+	private HTML viewer;
 	private TextBox editor;
 	private ATextEditorModel model;
 
@@ -24,7 +41,7 @@ public class TextEditorWidget extends AViewEditWidget {
 
 	@Override
 	protected final Widget onViewerInitialization() {
-		viewer = new Label();
+		viewer = new HTML();
 		return viewer;
 	}
 
@@ -34,7 +51,7 @@ public class TextEditorWidget extends AViewEditWidget {
 		editor.setMaxLength(model.getMaxLenght());
 		editor.setWidth("97%");
 		editor.addFocusListener(new EditorFocusListener());
-		editor.addKeyPressHandler(new EditorKeyboardListener());
+		editor.addKeyDownHandler(new EditorKeyHandler());
 		return editor;
 	}
 
@@ -62,8 +79,16 @@ public class TextEditorWidget extends AViewEditWidget {
 	}
 
 	public final void setViewerText(String text) {
-		if (Str.isBlank(text)) text = ".";
-		viewer.setText(text);
+		if (Str.isBlank(text)) {
+			viewer.setHTML(".");
+			return;
+		}
+		String html = getRichtextFormater().richtextToHtml(text);
+		viewer.setHTML(html);
+	}
+
+	protected RichtextFormater getRichtextFormater() {
+		return Gwt.getDefaultRichtextFormater();
 	}
 
 	public final void setEditorText(String text) {
@@ -83,7 +108,9 @@ public class TextEditorWidget extends AViewEditWidget {
 	}
 
 	public final String getEditorText() {
-		return editor.getText();
+		String text = editor.getText();
+		if (Str.isBlank(text)) return null;
+		return text;
 	}
 
 	protected Label getViewer() {
@@ -105,17 +132,19 @@ public class TextEditorWidget extends AViewEditWidget {
 		return model.getId();
 	}
 
-	private class EditorKeyboardListener implements KeyPressHandler {
+	private class EditorKeyHandler implements KeyDownHandler {
 
 		@Override
-		public void onKeyPress(KeyPressEvent event) {
-			char keyCode = event.getCharCode();
+		public void onKeyDown(KeyDownEvent event) {
+			int keyCode = event.getNativeKeyCode();
 			if (keyCode == KeyCodes.KEY_ENTER) {
 				submitEditor();
 			} else if (keyCode == KeyCodes.KEY_ESCAPE) {
 				cancelEditor();
 			}
+			event.stopPropagation();
 		}
+
 	}
 
 	private class EditorFocusListener implements FocusListener {

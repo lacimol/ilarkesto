@@ -1,9 +1,24 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.concurrent;
 
 import ilarkesto.base.Utl;
 import ilarkesto.core.logging.Log;
 import ilarkesto.di.Context;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -15,9 +30,8 @@ public class TaskManager {
 
 	private static final Log LOG = Log.get(TaskManager.class);
 
-	private Set<ATask> runningTasks = new HashSet<ATask>();
-	private Set<ATask> scheduledTasks = new HashSet<ATask>();
-	private Set<TaskRunner> taskRunners = new HashSet<TaskRunner>();
+	private Set<ATask> runningTasks = Collections.synchronizedSet(new HashSet<ATask>());
+	private Set<ATask> scheduledTasks = Collections.synchronizedSet(new HashSet<ATask>());
 	private ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(5,
 		new DeamonThreadFactory());
 	private ExecutorService executorService = Executors.newCachedThreadPool(new DeamonThreadFactory());
@@ -34,18 +48,18 @@ public class TaskManager {
 		Set<ATask> tasks;
 		while ((!(tasks = getRunningTasks()).isEmpty()) && System.currentTimeMillis() < tryUntilTime) {
 			LOG.info("Waiting for running tasks:", tasks);
-			synchronized (this) {
-				try {
-					this.wait(1000);
-				} catch (InterruptedException ex) {}
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException ex) {
+				LOG.info("    Waiting for running tasks aborted by InterruptedException");
+				return;
 			}
 		}
+		LOG.info("All tasks finished");
 	}
 
 	public Set<ATask> getRunningTasks() {
-		synchronized (runningTasks) {
-			return new HashSet<ATask>(runningTasks);
-		}
+		return Utl.toSet(runningTasks.toArray(new ATask[runningTasks.size()]));
 	}
 
 	public void abortAllRunningTasks() {
@@ -109,15 +123,11 @@ public class TaskManager {
 			this.parentContext = parentContext;
 		}
 
+		@Override
 		public void run() {
-			synchronized (taskRunners) {
-				taskRunners.add(this);
-			}
 			Context context = parentContext.createSubContext("task:" + task.toString());
 			// Thread.currentThread().setName(task.toString());
-			synchronized (runningTasks) {
-				runningTasks.add(task);
-			}
+			runningTasks.add(task);
 			// LOG.debug("Task started:", task);
 			try {
 				task.run();
@@ -129,16 +139,11 @@ public class TaskManager {
 				}
 			}
 			// LOG.debug("Task finished:", task);
-			synchronized (runningTasks) {
-				runningTasks.remove(task);
-			}
+			runningTasks.remove(task);
 			if (repeating) task.reset();
 			context.destroy();
 			synchronized (TaskManager.this) {
 				TaskManager.this.notifyAll();
-			}
-			synchronized (taskRunners) {
-				taskRunners.remove(this);
 			}
 		}
 

@@ -1,17 +1,33 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.webapp;
 
 import ilarkesto.base.time.DateAndTime;
 import ilarkesto.base.time.TimePeriod;
+import ilarkesto.core.base.Utl;
 import ilarkesto.core.logging.Log;
 import ilarkesto.di.Context;
 import ilarkesto.gwt.server.AGwtConversation;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
 import javax.servlet.http.HttpServletRequest;
 
-public abstract class AWebSession {
+public abstract class AWebSession implements Comparable<AWebSession> {
 
 	private static final Log LOG = Log.get(AWebSession.class);
 	private static final TimePeriod DEFAULT_TIMEOUT = TimePeriod.minutes(30);
@@ -21,12 +37,15 @@ public abstract class AWebSession {
 	private boolean shitBrowser;
 	private String initialRemoteHost;
 	private boolean sessionInvalidated;
+	private DateAndTime sessionStartedTime;
 	private DateAndTime lastTouched;
 	private Set<AGwtConversation> gwtConversations = new HashSet<AGwtConversation>();
 	private int lastGwtConversationNumber = 0;
 
 	public AWebSession(Context parentContext, HttpServletRequest initialRequest) {
 		this.initialRemoteHost = initialRequest == null ? "localhost" : initialRequest.getRemoteHost();
+
+		sessionStartedTime = DateAndTime.now();
 
 		context = parentContext.createSubContext(toString());
 		context.addBeanProvider(this);
@@ -49,7 +68,7 @@ public abstract class AWebSession {
 				return conversation;
 			}
 		}
-		throw new RuntimeException("GwtConversation does not exist: " + conversationNumber);
+		throw new GwtConversationDoesNotExist(conversationNumber);
 	}
 
 	public AGwtConversation createGwtConversation() {
@@ -85,7 +104,9 @@ public abstract class AWebSession {
 	}
 
 	final boolean isTimeouted() {
-		return lastTouched.getPeriodToNow().isGreaterThen(getTimeout());
+		TimePeriod idle = lastTouched.getPeriodToNow();
+		TimePeriod maxIdle = getTimeout();
+		return idle.isGreaterThen(maxIdle);
 	}
 
 	public final DateAndTime getLastTouched() {
@@ -104,6 +125,10 @@ public abstract class AWebSession {
 		this.shitBrowser = value;
 	}
 
+	public DateAndTime getSessionStartedTime() {
+		return sessionStartedTime;
+	}
+
 	public final Context getContext() {
 		return context;
 	}
@@ -113,10 +138,9 @@ public abstract class AWebSession {
 	}
 
 	protected void onInvalidate() {
-		for (AGwtConversation conversation : gwtConversations) {
-			conversation.invalidate();
+		for (AGwtConversation conversation : new ArrayList<AGwtConversation>(gwtConversations)) {
+			destroyGwtConversation(conversation);
 		}
-		gwtConversations = new HashSet<AGwtConversation>();
 	}
 
 	public final void invalidate() {
@@ -138,6 +162,11 @@ public abstract class AWebSession {
 	@Override
 	public String toString() {
 		return "session:" + initialRemoteHost;
+	}
+
+	@Override
+	public int compareTo(AWebSession o) {
+		return Utl.compare(o.getLastTouched(), getLastTouched());
 	}
 
 }

@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.net;
 
 import ilarkesto.testng.ATest;
@@ -7,6 +21,23 @@ import java.io.File;
 import org.testng.annotations.Test;
 
 public class WebCrawlerTest extends ATest {
+
+	public static void main(String[] args) {
+		WebCrawler wc = new WebCrawler();
+		// wc.setDefaultEncoding("iso-8859-2");
+		wc.setFilter(new WebCrawler.Filter() {
+
+			@Override
+			public boolean accept(String url) {
+				if (url.contains("animalprogress.strefa.pl")) return true;
+				// if (url.contains("animalprogress.strefa.pl")) return true;
+				return false;
+			}
+		});
+		wc.activateDownloading("/home/witek/inbox/crawler");
+		wc.crawl("http://animalprogress.strefa.pl/index.html");
+
+	}
 
 	@Test
 	public void normalizeUrl() {
@@ -42,7 +73,7 @@ public class WebCrawlerTest extends ATest {
 
 	@Test
 	public void download() {
-		WebCrawler.download("http://koczewski.de", OUTPUT_DIR + "/webcrawler");
+		WebCrawler.download("http://servisto.de", OUTPUT_DIR + "/webcrawler");
 	}
 
 }

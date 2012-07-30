@@ -1,14 +1,29 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.di.app;
 
 import ilarkesto.base.Sys;
 import ilarkesto.base.time.DateAndTime;
 import ilarkesto.cli.ACommand;
+import ilarkesto.core.base.Utl;
 import ilarkesto.core.logging.Log;
 import ilarkesto.di.BeanContainer;
 import ilarkesto.di.BeanProvider;
 import ilarkesto.di.MultiBeanProvider;
 import ilarkesto.io.IO;
-import ilarkesto.logging.DefaultLogDataHandler;
+import ilarkesto.logging.DefaultLogRecordHandler;
 import ilarkesto.logging.JavaLogging;
 import ilarkesto.logging.Log4jLogging;
 
@@ -23,8 +38,9 @@ public class ApplicationStarter {
 			String... arguments) {
 
 		Sys.storeStartupTime();
-		DefaultLogDataHandler.activate();
+		DefaultLogRecordHandler.activate();
 		Log.setDebugEnabled(Sys.isDevelopmentMode());
+		Utl.language = Locale.getDefault().getLanguage();
 		LOG.info("********************************************************************************");
 		LOG.info("Starting application:", applicationClass.getName());
 		logEnvironmentInfo();
@@ -33,14 +49,14 @@ public class ApplicationStarter {
 		try {
 			A application = applicationClass.newInstance();
 			if (beanProvider != null) beanProvider.autowire(application);
-			DefaultLogDataHandler.setLogFile(new File(application.getApplicationDataDir() + "/error.log"));
+			DefaultLogRecordHandler.setLogFile(new File(application.getApplicationDataDir() + "/error.log"));
 			JavaLogging.redirectToLoggers();
 			try {
 				Log4jLogging.redirectToLoggers();
 			} catch (Throwable ex) {}
 			application.setArguments(arguments);
 			application.start();
-			LOG.info("Application started:", application);
+			LOG.info("Application started:", application.getApplicationName() + " " + application.getReleaseLabel());
 			LOG.info("********************************************************************************\n");
 			return application;
 		} catch (Throwable ex) {

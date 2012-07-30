@@ -1,8 +1,23 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.persistence;
 
 import ilarkesto.auth.AUser;
 import ilarkesto.auth.AUserDao;
 import ilarkesto.auth.Auth;
+import ilarkesto.auth.Ownable;
 import ilarkesto.base.Iconized;
 import ilarkesto.base.Reflect;
 import ilarkesto.base.Utl;
@@ -37,7 +52,8 @@ public abstract class ADao<E extends AEntity> extends ADatobManager<E> implement
 	@Override
 	public void onDatobModified(E entity, String comment) {
 		// don's save new entities
-		if (!isPersistent(entity)) return;
+		boolean persistent = isPersistent(entity);
+		if (!persistent) return;
 
 		LOG.info("Entity modified:", Utl.toStringWithType(entity), "->", comment);
 		saveEntity(entity);
@@ -167,6 +183,12 @@ public abstract class ADao<E extends AEntity> extends ADatobManager<E> implement
 	public void saveEntity(E entity) {
 		transactionService.saveEntity(entity);
 		daoService.fireEntitySaved(entity);
+	}
+
+	public E newEntityInstance(AUser user) {
+		E entity = newEntityInstance();
+		if (entity instanceof Ownable) ((Ownable) entity).setOwner(user);
+		return entity;
 	}
 
 	public E newEntityInstance() {

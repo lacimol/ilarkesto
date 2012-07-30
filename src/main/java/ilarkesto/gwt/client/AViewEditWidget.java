@@ -1,13 +1,29 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.client;
 
 import ilarkesto.core.base.Str;
+import ilarkesto.core.base.Utl;
 import ilarkesto.core.logging.Log;
 
+import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
-import com.google.gwt.event.dom.client.KeyPressEvent;
-import com.google.gwt.event.dom.client.KeyPressHandler;
+import com.google.gwt.event.dom.client.KeyDownEvent;
+import com.google.gwt.event.dom.client.KeyDownHandler;
 import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.FocusListener;
 import com.google.gwt.user.client.ui.FocusPanel;
@@ -16,6 +32,7 @@ import com.google.gwt.user.client.ui.Widget;
 
 public abstract class AViewEditWidget extends AWidget {
 
+	private static Log log = Log.get(AViewEditWidget.class);
 	private static AViewEditWidget currentEditor;
 	private static ModeSwitchHandler globalModeSwitchHandler;
 
@@ -46,12 +63,12 @@ public abstract class AViewEditWidget extends AWidget {
 	protected final Widget onInitialization() {
 		masterWrapper = new FocusPanel();
 		masterWrapper.setStyleName("AViewEditWidget");
-		Gwt.addHtmlTooltip(masterWrapper, getTooltip());
+		Gwt.addTooltipHtml(masterWrapper, getTooltip());
 		return masterWrapper;
 	}
 
 	@Override
-	protected final void onUpdate() {
+	protected void onUpdate() {
 		if (isViewMode()) {
 			updateViewer();
 		} else {
@@ -71,7 +88,11 @@ public abstract class AViewEditWidget extends AWidget {
 		ensureEditorInitialized();
 		viewMode = false;
 		if (currentEditor != null) {
-			currentEditor.closeEditor();
+			try {
+				currentEditor.closeEditor();
+			} catch (Throwable ex) {
+				log.error(ex);
+			}
 		}
 		currentEditor = this;
 		updateEditor();
@@ -90,6 +111,10 @@ public abstract class AViewEditWidget extends AWidget {
 	}
 
 	public void switchToViewMode() {
+		switchToViewMode(isAttached());
+	}
+
+	public void switchToViewMode(boolean update) {
 		if (isViewMode()) return;
 		Log.DEBUG("Switching to view mode: " + toString());
 		viewMode = true;
@@ -97,20 +122,27 @@ public abstract class AViewEditWidget extends AWidget {
 		if (currentEditor == this) currentEditor = null;
 		if (modeSwitchHandler != null) modeSwitchHandler.onViewerActivated(this);
 		if (globalModeSwitchHandler != null) globalModeSwitchHandler.onViewerActivated(this);
-		update();
+		if (update) update();
 	}
 
-	protected final boolean submitEditor() {
+	public final boolean submitEditor() {
+		return submitEditor(true);
+	}
+
+	public final boolean submitEditor(boolean switchToViewMode) {
 		if (!isEditMode()) throw new RuntimeException("submitEditor() not allowed. Not in edit mode: " + toString());
 		try {
 			onEditorSubmit();
 		} catch (Throwable ex) {
-			setEditorError(ex.getMessage());
+			ex.printStackTrace();
+			setEditorError(Utl.getUserMessageStack(ex));
 			return false;
 		}
 		setEditorError(null);
-		switchToViewMode();
-		updateAutoUpdateWidget();
+		if (switchToViewMode || !editorWrapper.isAttached()) {
+			switchToViewMode();
+			if (isAttached()) updateAutoUpdateWidget();
+		}
 		return true;
 	}
 
@@ -125,6 +157,12 @@ public abstract class AViewEditWidget extends AWidget {
 
 	protected void closeEditor() {
 		cancelEditor();
+	}
+
+	@Override
+	protected void onDetach() {
+		super.onDetach();
+		if (isEditMode()) closeEditor();
 	}
 
 	private void initializeViewer() {
@@ -233,13 +271,27 @@ public abstract class AViewEditWidget extends AWidget {
 
 		@Override
 		public void onClick(ClickEvent event) {
-			if (event.getNativeEvent().getEventTarget().toString().startsWith("[object HTML")) {
-				if (isEditable()) switchToEditMode();
-			}
+			if (isRightTarget(event) && isEditable()) switchToEditMode();
 			event.stopPropagation();
 		}
 
+		private boolean isRightTarget(ClickEvent event) {
+			String eventTarget = event.getNativeEvent().getEventTarget().toString();
+			// showIfIe(eventTarget);
+			if (!GWT.isProdMode()) return eventTarget.startsWith("<div ");
+			if (Gwt.isMsie()) return eventTarget.equals("[object]");
+			return eventTarget.startsWith("[object HTML");
+		}
+
 	}
+
+	public static native void showIfIe(String text)
+	/*-{
+	    var agent = navigator.userAgent.toLowerCase();
+		if (agent.indexOf('msie')>=0) {
+			alert('ie-text:'+text+':'+agent);
+		}
+	}-*/;
 
 	protected class SubmitEditorFocusListener implements FocusListener {
 
@@ -255,11 +307,11 @@ public abstract class AViewEditWidget extends AWidget {
 
 	}
 
-	public class CancelKeyPressHandler implements KeyPressHandler {
+	public class CancelKeyHandler implements KeyDownHandler {
 
 		@Override
-		public void onKeyPress(KeyPressEvent event) {
-			char keyCode = event.getCharCode();
+		public void onKeyDown(KeyDownEvent event) {
+			int keyCode = event.getNativeKeyCode();
 			if (keyCode == KeyCodes.KEY_ESCAPE) {
 				cancelEditor();
 			}

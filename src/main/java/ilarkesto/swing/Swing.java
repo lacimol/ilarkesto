@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.swing;
 
 import ilarkesto.base.Str;
@@ -5,12 +19,14 @@ import ilarkesto.core.logging.Log;
 import ilarkesto.io.IO;
 
 import java.awt.AWTException;
+import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dialog.ModalityType;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
 import java.awt.EventQueue;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GraphicsDevice;
@@ -32,13 +48,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.swing.Action;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
@@ -59,6 +78,14 @@ public class Swing {
 		showMessageDialog(
 			null,
 			" Geschafft, obwohl der Text so scheiss lang ist.\n Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheissGeschafft, obwohl der Text so scheiss lang ist.\\n Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheissGeschafft, obwohl der Text so scheiss lang ist.\\n Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheissGeschafft, obwohl der Text so scheiss lang ist.\\n Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss lang ist. Geschafft, obwohl der Text so scheiss");
+	}
+
+	public static void setSystemLookAndFeel() {
+		try {
+			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+		} catch (Throwable ex) {
+			throw new RuntimeException(ex);
+		}
 	}
 
 	public static Dimension getFractionFromScreen(double xFactor, double yFactor) {
@@ -211,6 +238,24 @@ public class Swing {
 		splitPane.add(left);
 		splitPane.add(right);
 		return splitPane;
+	}
+
+	public static JPanel createPanelForButtonsRight(Action... actions) {
+		JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+		for (Action action : actions) {
+			if (action == null) {
+				panel.add(createSpacer(10, 1));
+				continue;
+			}
+			panel.add(new JButton(action));
+		}
+		return panel;
+	}
+
+	public static Component createSpacer(int width, int height) {
+		Canvas canvas = new Canvas();
+		canvas.setPreferredSize(new Dimension(width, height));
+		return canvas;
 	}
 
 	/**

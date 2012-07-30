@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.di.app;
 
 import ilarkesto.base.Str;
@@ -13,7 +27,7 @@ import ilarkesto.integration.xstream.XStreamSerializer;
 import ilarkesto.io.ExclusiveFileLock;
 import ilarkesto.io.ExclusiveFileLock.FileLockedException;
 import ilarkesto.io.IO;
-import ilarkesto.logging.DefaultLogDataHandler;
+import ilarkesto.logging.DefaultLogRecordHandler;
 import ilarkesto.persistence.DaoListener;
 import ilarkesto.persistence.DaoService;
 import ilarkesto.persistence.EntityStore;
@@ -36,6 +50,7 @@ public abstract class AApplication {
 	private static Log log = Log.get(AApplication.class);
 
 	private ExclusiveFileLock exclusiveFileLock;
+	private boolean shutdown;
 
 	protected abstract void onStart();
 
@@ -103,19 +118,21 @@ public abstract class AApplication {
 				synchronized (getApplicationLock()) {
 					if (instance == null) throw new RuntimeException("Application not started yet.");
 					log.info("Shutdown initiated:", getApplicationName());
+					onShutdown();
 
 					getTaskManager().shutdown(10000);
 					Set<ATask> tasks = getTaskManager().getRunningTasks();
 					if (!tasks.isEmpty()) {
 						log.warn("Aborting tasks on shutdown failed:", tasks);
 					}
+					getEntityStore().lock();
+					shutdown = true;
 
 					if (context != null) context.destroy();
 
 					if (exclusiveFileLock != null) exclusiveFileLock.release();
 					Log.flush();
-					onShutdown();
-					DefaultLogDataHandler.stopLogging();
+					DefaultLogRecordHandler.stopLogging();
 				}
 			}
 
@@ -269,6 +286,10 @@ public abstract class AApplication {
 		return !isDevelopmentMode();
 	}
 
+	public boolean isShutdown() {
+		return shutdown;
+	}
+
 	@Override
 	public final String toString() {
 		return getApplicationName();
@@ -301,6 +322,8 @@ public abstract class AApplication {
 			entityStore.setBackupDir(backupDir.getPath());
 			entityStore.setVersion(getDataVersion());
 			Context.get().autowire(entityStore);
+
+			entityStore.deleteOldBackups();
 		}
 		return entityStore;
 	}

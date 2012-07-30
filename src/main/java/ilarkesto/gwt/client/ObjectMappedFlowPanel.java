@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.client;
 
 import ilarkesto.gwt.client.animation.AnimatingFlowPanel;
@@ -81,35 +95,41 @@ public class ObjectMappedFlowPanel<O extends Object, W extends Widget> extends C
 
 	private W insert(int index, O object, boolean animate, InsertCallback callback) {
 		assert object != null;
+		assert objectList.size() == widgetMap.size();
 		assert !objectList.contains(object);
+		assert !widgetMap.containsKey(object);
 		assert objectHeights != null;
 		assert panel != null;
 		W widget = createWidget(object);
+		assert widget != null;
 		if (animate) {
-			panel.insertAnimated(index, widget, objectHeights.get(object), callback);
+			panel.insertAnimated(index, widget, objectHeights.get(object));
 		} else {
 			panel.insert(index, widget);
-			if (callback != null) callback.onInserted(index);
 		}
+		W previous = widgetMap.put(object, widget);
+		assert previous == null;
 		objectList.add(index, object);
 		assert objectList.contains(object);
+		assert widgetMap.containsKey(object);
 		assert objectList.size() == widgetMap.size();
+		if (callback != null) callback.onInserted(index);
 		return widget;
 	}
 
 	private W remove(O object, boolean animate) {
-		assert containsObject(object);
+		assert object != null;
+		assert objectList.size() == widgetMap.size();
+		assert objectList.contains(object);
+		assert widgetMap.containsKey(object);
 		W widget = getWidget(object);
-		if (animate) {
-			int height = widget.getElement().getOffsetHeight();
-			objectHeights.put(object, height);
-			panel.removeAnimated(widget);
-		} else {
-			panel.remove(widget);
-		}
+		assert widget != null;
+		boolean removed = panel.remove(widget);
+		assert removed;
 		objectList.remove(object);
 		widgetMap.remove(object);
-		assert !containsObject(object);
+		assert !objectList.contains(object);
+		assert !widgetMap.containsKey(object);
 		assert objectList.size() == widgetMap.size();
 		return widget;
 	}
@@ -166,7 +186,6 @@ public class ObjectMappedFlowPanel<O extends Object, W extends Widget> extends C
 
 	private W createWidget(O object) {
 		W widget = widgetFactory.createWidget(object);
-		widgetMap.put(object, widget);
 		return widget;
 	}
 

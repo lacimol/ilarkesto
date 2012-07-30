@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.client;
 
 import ilarkesto.core.logging.Log;
@@ -19,7 +33,7 @@ public class NavigatorWidget<K extends Object> extends AWidget {
 	private static final Log log = Log.get(NavigatorWidget.class);
 
 	private FlowPanel panel;
-	StaticMenu menu;
+	protected StaticMenu menu;
 	private MenuItem lastAnimatedItem;
 	private long lastUpdateTime;
 
@@ -53,18 +67,21 @@ public class NavigatorWidget<K extends Object> extends AWidget {
 	private Widget createItemWidget(final MenuItem item) {
 		final ImageAnchor a = new ImageAnchor(null, item.getLabel());
 		String href = getHref(item);
-		if (href != null) a.setHref(href);
-		a.addClickHandler(new ClickHandler() {
+		if (href != null) {
+			a.setHref(href);
+		} else {
+			a.addClickHandler(new ClickHandler() {
 
-			@Override
-			public void onClick(ClickEvent event) {
-				log.debug("Item clicked:", item.getLabel());
-				event.stopPropagation();
-				item.select();
-				a.setFocus(false);
-				update();
-			}
-		});
+				@Override
+				public void onClick(ClickEvent event) {
+					log.debug("Item clicked:", item.getLabel());
+					event.stopPropagation();
+					item.select();
+					a.setFocus(false);
+					update();
+				}
+			});
+		}
 
 		FlowPanel itemPanel = new FlowPanel();
 		itemPanel.setStyleName("NavigatorWidget-item");
@@ -74,7 +91,7 @@ public class NavigatorWidget<K extends Object> extends AWidget {
 			if (item instanceof Submenu) {
 				boolean animate = lastAnimatedItem != item;
 				// log.debug("---------- animate:", animate);
-				Widget submenuPanel = animate ? new AnimatingFlowPanel(0.5) : new FlowPanel();
+				Widget submenuPanel = animate ? new AnimatingFlowPanel() : new FlowPanel();
 				if (animate) lastAnimatedItem = item;
 				submenuPanel.setStyleName("NavigatorWidget-submenu");
 				itemPanel.add(submenuPanel);

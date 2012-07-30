@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.core.base;
 
 import java.util.Collection;
@@ -16,6 +30,107 @@ public class Str {
 	public static final char sz = '\u00DF';
 
 	public static final char EUR = '\u0080';
+
+	public static String encodeUrlParameter(String s) {
+		if (s == null) return "";
+		StringBuilder sb = new StringBuilder();
+		int len = s.length();
+		for (int i = 0; i < len; i++) {
+			char c = s.charAt(i);
+			switch (c) {
+				case '$':
+					sb.append("%24");
+					break;
+				case '&':
+					sb.append("%26");
+					break;
+				case '+':
+					sb.append("%2B");
+					break;
+				case ',':
+					sb.append("%2C");
+					break;
+				case '/':
+					sb.append("%2F");
+					break;
+				case ':':
+					sb.append("%3A");
+					break;
+				case ';':
+					sb.append("%3B");
+					break;
+				case '=':
+					sb.append("%3D");
+					break;
+				case '?':
+					sb.append("%3F");
+					break;
+				case '@':
+					sb.append("%40");
+					break;
+				case ' ':
+					sb.append("%20");
+					break;
+				case '"':
+					sb.append("%22");
+					break;
+				case '<':
+					sb.append("%3C");
+					break;
+				case '>':
+					sb.append("%3E");
+					break;
+				case '#':
+					sb.append("%23");
+					break;
+				case '%':
+					sb.append("%25");
+					break;
+				case '{':
+					sb.append("7B%");
+					break;
+				case '}':
+					sb.append("7D%");
+					break;
+				case '|':
+					sb.append("%7C");
+					break;
+				case '\\':
+					sb.append("%5C");
+					break;
+				case '^':
+					sb.append("%5E");
+					break;
+				case '~':
+					sb.append("%7E");
+					break;
+				case '[':
+					sb.append("%5B");
+					break;
+				case ']':
+					sb.append("%5D");
+					break;
+				case '`':
+					sb.append("%60");
+					break;
+				default:
+					sb.append(c);
+			}
+		}
+		return sb.toString();
+	}
+
+	public static String[] toStringArray(Collection<String> c) {
+		return toStringArray(c.toArray());
+	}
+
+	public static String[] toStringArray(Object[] oa) {
+		String[] sa = new String[oa.length];
+		for (int i = 0; i < oa.length; i++) {
+			sa[i] = oa[i] == null ? null : oa[i].toString();
+		}
+		return sa;
+	}
 
 	public static String toStringHelper(Object thiz, Object... properties) {
 		return toStringHelper(getSimpleName(thiz.getClass()), properties);
@@ -38,7 +153,23 @@ public class Str {
 		return sb.toString();
 	}
 
+	public static String concat(Iterable strings, String delimiter) {
+		if (strings == null) return null;
+		StringBuilder sb = new StringBuilder();
+		boolean first = true;
+		for (Object s : strings) {
+			if (first) {
+				first = false;
+			} else {
+				sb.append(delimiter);
+			}
+			sb.append(s);
+		}
+		return sb.toString();
+	}
+
 	public static String concat(Collection strings, String delimiter) {
+		if (strings == null) return null;
 		StringBuilder sb = new StringBuilder();
 		boolean first = true;
 		for (Object s : strings) {
@@ -239,8 +370,9 @@ public class Str {
 	}
 
 	private static boolean isWrapperException(Throwable ex) {
-		if (ex.getClass().getName().equals(RuntimeException.class.getName())) return true;
-		if (ex.getClass().getName().equals("java.util.concurrent.ExecutionException")) return true;
+		if (getSimpleName(ex.getClass()).equals("RuntimeException")) return true;
+		if (getSimpleName(ex.getClass()).equals("ExecutionException")) return true;
+		if (getSimpleName(ex.getClass()).equals("UmbrellaException")) return true;
 		return false;
 	}
 
@@ -282,7 +414,8 @@ public class Str {
 			Throwable cause = ex.getCause();
 			String message = ex.getMessage();
 			if (cause != null && message != null && message.startsWith(cause.getClass().getName())) message = null;
-			while (isWrapperException(ex) && isBlank(message) && cause != null) {
+			while ((isWrapperException(ex) && isBlank(message) && cause != null)
+					|| getSimpleName(ex.getClass()).equals("UmbrellaException")) {
 				ex = cause;
 				cause = ex.getCause();
 				message = ex.getMessage();
@@ -293,8 +426,10 @@ public class Str {
 			} else {
 				sb.append("\nCaused by ");
 			}
-			sb.append(getSimpleName(ex.getClass()));
-			sb.append(": ");
+			if (!isWrapperException(ex)) {
+				sb.append(getSimpleName(ex.getClass()));
+				sb.append(": ");
+			}
 			sb.append(message);
 			ex = cause;
 		}

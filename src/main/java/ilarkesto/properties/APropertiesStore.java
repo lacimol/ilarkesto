@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.properties;
 
 import ilarkesto.base.Str;
@@ -33,7 +47,11 @@ public abstract class APropertiesStore {
 	public final void set(String name, String value) {
 		String oldValue = get(name);
 		if (Utl.equals(value, oldValue)) return;
-		getProperties().setProperty(name, value);
+		if (value == null) {
+			getProperties().remove(name);
+		} else {
+			getProperties().setProperty(name, value);
+		}
 		save(getProperties());
 	}
 
@@ -47,6 +65,14 @@ public abstract class APropertiesStore {
 	public final List<String> getList(String name, List<String> defaultValue) {
 		String s = get(name);
 		return s == null ? defaultValue : Utl.toList(Str.tokenize(s, ";"));
+	}
+
+	// --- Integer ---
+
+	public final Integer getInteger(String name) {
+		String s = get(name);
+		if (s == null) return null;
+		return Integer.parseInt(s);
 	}
 
 	// --- int ---

@@ -1,8 +1,22 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.gwt.server;
 
-import ilarkesto.base.Str;
 import ilarkesto.core.logging.Log;
 import ilarkesto.di.Context;
+import ilarkesto.gwt.client.ErrorWrapper;
 import ilarkesto.persistence.DaoService;
 import ilarkesto.webapp.AWebApplication;
 import ilarkesto.webapp.AWebSession;
@@ -38,11 +52,15 @@ public abstract class AGwtServiceImpl extends RemoteServiceServlet {
 	}
 
 	protected final void handleServiceMethodException(int conversationNumber, String method, Throwable t) {
-		LOG.error("Service method failed:", method, "->", t);
+		LOG.info("Service method failed:", method, "->", t);
+
+		// reset modified entities
 		getWebApplication().getTransactionService().cancel();
+
 		try {
+			// send error to client
 			AGwtConversation conversation = getSession().getGwtConversation(conversationNumber);
-			conversation.getNextData().addError("Server error:" + Str.getRootCauseMessage(t));
+			conversation.getNextData().addError(new ErrorWrapper(t));
 		} catch (Throwable ex) {
 			LOG.info(ex);
 			return;
@@ -62,8 +80,17 @@ public abstract class AGwtServiceImpl extends RemoteServiceServlet {
 			getWebApplication().destroyWebSession(session, getThreadLocalRequest().getSession());
 	}
 
+	@Override
+	protected void checkPermutationStrongName() throws SecurityException {
+		// TODO remove this to use super.checkPermutationStrongName();
+		// Workaround for SecurityException: Blocked request without GWT permutation header (XSRF attack?)
+		// @see http://code.google.com/p/gwteventservice/issues/detail?id=30
+	}
+
 	protected final AWebSession getSession() {
-		return getWebApplication().getWebSession(getThreadLocalRequest());
+		AWebApplication webApplication = getWebApplication();
+		if (webApplication.isShutdown()) throw new RuntimeException("Application shut down");
+		return webApplication.getWebSession(getThreadLocalRequest());
 	}
 
 	@Override

@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.di;
 
 import ilarkesto.base.Reflect;
@@ -62,7 +76,7 @@ public class Autowire {
 	 * @param objectStringMapper optional
 	 * @return the given <code>bean</code>
 	 */
-	public static <T> T autowire(T bean, final BeanProvider beanProvider, ObjectStringMapper objectStringMapper) {
+	public static <T> T autowire(T bean, final BeanProvider beanProvider, final ObjectStringMapper objectStringMapper) {
 		// Logger.DEBUG("***** autowiring", "<" + Utl.toStringWithType(bean) + ">", "with", "<"
 		// + Utl.toStringWithType(beanProvider) + ">");
 		final Set<String> availableBeanNames = beanProvider.beanNames();
@@ -101,11 +115,21 @@ public class Autowire {
 				String name = field.getName();
 				if (!availableBeanNames.contains(name)) return;
 				field.setAccessible(true);
+				Object value = beanProvider.getBean(name);
+				Class paramType = field.getType();
 				try {
-					field.set(object, beanProvider.getBean(name));
+					if (objectStringMapper != null && value instanceof String
+							&& objectStringMapper.isTypeSupported(paramType)) {
+						value = objectStringMapper.stringToObject((String) value, paramType);
+					} else {
+						value = convertType(paramType, value);
+					}
+					field.set(object, value);
 				} catch (Exception ex) {
+					String valueStr = value == null ? "<" + value + ">" : value.getClass().getSimpleName() + ": <"
+							+ value + ">";
 					throw new RuntimeException("Setting field " + object.getClass().getSimpleName() + "." + name
-							+ " failed.", ex);
+							+ " to " + valueStr + " failed.", ex);
 				}
 			}
 		});
@@ -154,11 +178,16 @@ public class Autowire {
 			IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 
 		// try call constructor
-		Class[] types = { value.getClass() };
 		try {
-			Constructor constructor = newType.getConstructor(types);
-			Object[] arguments = { value };
-			return constructor.newInstance(arguments);
+			if (value == null) {
+				Constructor constructor = newType.getConstructor();
+				return constructor.newInstance();
+			} else {
+				Class[] types = { value.getClass() };
+				Constructor constructor = newType.getConstructor(types);
+				Object[] arguments = { value };
+				return constructor.newInstance(arguments);
+			}
 		} catch (NoSuchMethodException e) {
 			// try using the transformers
 			ITransformer transformer = getTypeTransformer(newType);
@@ -178,48 +207,56 @@ public class Autowire {
 	static {
 		defaultTransformers.put(Boolean.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return Boolean.valueOf(input.toString());
 			}
 		});
 		defaultTransformers.put(Character.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return new Character(input.toString().charAt(0));
 			}
 		});
 		defaultTransformers.put(Byte.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return Byte.valueOf(input.toString());
 			}
 		});
 		defaultTransformers.put(Short.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return Short.valueOf(input.toString());
 			}
 		});
 		defaultTransformers.put(Integer.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return Integer.valueOf(input.toString());
 			}
 		});
 		defaultTransformers.put(Long.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return Long.valueOf(input.toString());
 			}
 		});
 		defaultTransformers.put(Float.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return Float.valueOf(input.toString());
 			}
 		});
 		defaultTransformers.put(Double.TYPE, new ITransformer() {
 
+			@Override
 			public Object transform(Object input) {
 				return Double.valueOf(input.toString());
 			}

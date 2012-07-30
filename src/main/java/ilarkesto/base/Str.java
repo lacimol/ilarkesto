@@ -1,4 +1,20 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.base;
+
+import ilarkesto.integration.links.LinkConverter;
 
 import java.awt.Color;
 import java.io.BufferedReader;
@@ -23,7 +39,7 @@ import java.util.StringTokenizer;
 public class Str extends ilarkesto.core.base.Str {
 
 	public static void main(String[] args) {
-		System.out.println(generateRandomParagraph());
+		System.out.println(activateLinksInHtml(toHtml("abc <http://koczewski.de?x=x&y=y>"), null));
 		System.exit(0);
 	}
 
@@ -36,12 +52,31 @@ public class Str extends ilarkesto.core.base.Str {
 
 	private static final Object UIDLOCK = new Object();
 
+	public static String getCharsetFromHtml(String html, String defaultCharset) {
+		String charset = Str.cutFromTo(html, "charset=", "\"");
+		if (Str.isBlank(charset)) charset = defaultCharset;
+		return charset;
+	}
+
+	public static String[] tokenize(String s, String delimiter) {
+		StringTokenizer tok = new StringTokenizer(s, delimiter);
+		LinkedList<String> ll = new LinkedList<String>();
+		while (tok.hasMoreTokens()) {
+			ll.add(tok.nextToken());
+		}
+		return toStringArray(ll);
+	}
+
 	public static String multiply(String s, int factor) {
 		StringBuilder sb = new StringBuilder();
 		for (int i = 0; i < factor; i++) {
 			sb.append(s);
 		}
 		return sb.toString();
+	}
+
+	public static String generateRandomParagraphs(int count) {
+		return generateRandomParagraphs(count, null, null, "\n\n");
 	}
 
 	public static String generateRandomParagraphs(int count, String prefix, String suffix, String separator) {
@@ -99,8 +134,24 @@ public class Str extends ilarkesto.core.base.Str {
 		return uppercase ? uppercaseFirstLetter(word) : word;
 	}
 
+	public static String generatePassword() {
+		return generatePassword(Utl.randomInt(12, 24));
+	}
+
 	public static String generatePassword(int length) {
-		return generateRandomWord("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!$%&=", length);
+		if (length <= 10)
+			return generateRandomWord("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!$%&=-_/()[]{}",
+				length);
+		StringBuilder sb = new StringBuilder();
+		length -= 2;
+		while (length > 6) {
+			String word = generateRandomWord(2, 5, true) + " ";
+			length -= word.length();
+			sb.append(word);
+		}
+		sb.append(generateRandomWord(length, length, true));
+		sb.append(generateRandomWord("1234567890", "!$%&=-_/()[]{}", 2));
+		return sb.toString();
 	}
 
 	public static String generateRandomWord(String availableChars, int minLength, int maxLength) {
@@ -263,51 +314,39 @@ public class Str extends ilarkesto.core.base.Str {
 		return false;
 	}
 
-	public static String activateLinksInHtml(String s) {
-		return activateLinksInHtml(s, 640);
+	public static String activateLinksInHtml(String html, LinkConverter linkConverter) {
+		return activateLinksInHtml(html, linkConverter, 640);
 	}
 
-	public static String activateLinksInHtml(String s, int maxWidth) {
+	public static String activateLinksInHtml(String s, LinkConverter linkConverter, int maxWidth) {
 		if (s == null) return null;
 		int fromIndex = 0;
 		StringBuffer result = null;
 		int idx = -1;
 		while ((idx = firstIndexOf(s, fromIndex, "http://", "https://", "ftp://", "www.")) >= 0) {
 			char pre = idx == 0 ? ' ' : s.charAt(idx - 1);
-			if (pre == ' ' || pre == '\n' || pre == '>') {
-				int endIdx = firstIndexOf(s, idx, " ", "<", "\n");
+			if (pre == ' ' || pre == '\n' || pre == '>' || pre == ';') {
+				int endIdx = firstIndexOf(s, idx, " ", "<", "\n", pre == ';' ? "&gt;" : "\n");
 				if (endIdx <= 0 || !s.substring(endIdx).startsWith("</a>")) {
 					if (endIdx < 0) endIdx = s.length();
 					// activate
 					String url = s.substring(idx, endIdx);
 					if (result == null) result = new StringBuffer();
 					result.append(s.substring(fromIndex, idx));
-					String urlLower = url.toLowerCase();
 					result.append("<a href=\"");
 					result.append(url.startsWith("www.") ? "http://" + url : url);
 					result.append("\" target=\"_blank\">");
 
-					if (urlLower.startsWith("http://www.youtube.com/watch?v=")) {
-						result.append(youtube(parseYoutubeVideoId(url), maxWidth));
-					} else if (urlLower.startsWith("http://twitpic.com/")) {
-						String id = removePrefix(url, "http://twitpic.com/");
-						result.append("<img src=\"");
-						result.append("http://twitpic.com/show/full/").append(id);
-						result.append("\" style=\"max-width: " + maxWidth + "px; max-height: " + maxWidth
-								+ "px;\" alt=\"twitpic\">");
-					} else if (urlLower.endsWith(".jpg") || urlLower.endsWith(".gif") || urlLower.endsWith(".png")
-							|| urlLower.endsWith(".jpeg") || url.contains(".ggpht.com/")) {
-						result.append("<img src=\"");
-						result.append(url.startsWith("www.") ? "http://" + url : url);
-						result.append("\" style=\"max-width: " + maxWidth + "px; max-height: " + maxWidth
-								+ "px;\" alt=\"img\">");
-					} else {
+					String convertedUrl = linkConverter == null ? url : linkConverter.convert(url, maxWidth);
+					if (convertedUrl == url) {
 						String label = url;
 						if (url.startsWith("http://")) url = url.substring(7);
 						if (url.startsWith("https://")) url = url.substring(8);
 						if (url.startsWith("www.")) url = url.substring(4);
 						label = cutRight(url, 30, "...");
 						result.append(label);
+					} else {
+						result.append(convertedUrl);
 					}
 
 					result.append("</a>");
@@ -324,39 +363,6 @@ public class Str extends ilarkesto.core.base.Str {
 		if (result == null) return s;
 		result.append(s.substring(fromIndex));
 		return result.toString();
-	}
-
-	private static String parseYoutubeVideoId(String url) {
-		String prefix = "http://www.youtube.com/watch?v=";
-		String s = removePrefix(url, prefix);
-		int endIdx = s.indexOf("&");
-		if (endIdx > 0) {
-			s = s.substring(0, endIdx);
-		}
-		return s;
-	}
-
-	public static String youtube(String vId) {
-		return youtube(vId, 640, 385);
-	}
-
-	public static String youtube(String vId, int width) {
-		int height = (int) (width / 1.6623f);
-		return youtube(vId, width, height);
-	}
-
-	public static String youtube(String vId, int width, int height) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("<object width=\"").append(width).append("\" height=\"").append(height).append("\">");
-		sb.append("<param name=\"movie\" value=\"http://www.youtube.com/v/").append(vId)
-				.append("&hl=en_US&fs=1&\"></param>");
-		sb.append("<param name=\"allowFullScreen\" value=\"true\"></param>");
-		sb.append("<param name=\"allowscriptaccess\" value=\"always\"></param>");
-		sb.append("<embed src=\"http://www.youtube.com/v/").append(vId)
-				.append("&hl=en_US&fs=1&\" type=\"application/x-shockwave-flash\" allowscriptaccess=\"always\"")
-				.append(" allowfullscreen=\"true\" width=\"").append(width).append("\" height=\"").append(height)
-				.append("\"></embed></object>");
-		return sb.toString();
 	}
 
 	public static int firstIndexOf(String s, int fromIndex, String... stringsToFind) {
@@ -584,95 +590,6 @@ public class Str extends ilarkesto.core.base.Str {
 		return Character.MAX_VALUE;
 	}
 
-	public static String encodeUrlParameter(String s) {
-		if (s == null) return "";
-		StringBuilder sb = new StringBuilder();
-		int len = s.length();
-		for (int i = 0; i < len; i++) {
-			char c = s.charAt(i);
-			switch (c) {
-				case '$':
-					sb.append("%24");
-					break;
-				case '&':
-					sb.append("%26");
-					break;
-				case '+':
-					sb.append("%2B");
-					break;
-				case ',':
-					sb.append("%2C");
-					break;
-				case '/':
-					sb.append("%2F");
-					break;
-				case ':':
-					sb.append("%3A");
-					break;
-				case ';':
-					sb.append("%3B");
-					break;
-				case '=':
-					sb.append("%3D");
-					break;
-				case '?':
-					sb.append("%3F");
-					break;
-				case '@':
-					sb.append("%40");
-					break;
-				case ' ':
-					sb.append("%20");
-					break;
-				case '"':
-					sb.append("%22");
-					break;
-				case '<':
-					sb.append("%3C");
-					break;
-				case '>':
-					sb.append("%3E");
-					break;
-				case '#':
-					sb.append("%23");
-					break;
-				case '%':
-					sb.append("%25");
-					break;
-				case '{':
-					sb.append("7B%");
-					break;
-				case '}':
-					sb.append("7D%");
-					break;
-				case '|':
-					sb.append("%7C");
-					break;
-				case '\\':
-					sb.append("%5C");
-					break;
-				case '^':
-					sb.append("%5E");
-					break;
-				case '~':
-					sb.append("%7E");
-					break;
-				case '[':
-					sb.append("%5B");
-					break;
-				case ']':
-					sb.append("%5D");
-					break;
-				case '`':
-					sb.append("%60");
-					break;
-				default:
-					sb.append(c);
-			}
-		}
-		return sb.toString();
-	}
-
 	public static String constructUrl(String base, Map parameters) {
 		StringBuilder sb = new StringBuilder();
 		sb.append(base);
@@ -867,6 +784,9 @@ public class Str extends ilarkesto.core.base.Str {
 
 	public static String html2text(String s) {
 		if (s == null) return null;
+
+		s = getHtmlBody(s);
+
 		StringBuilder sb = new StringBuilder();
 		StringBuilder tag = null;
 
@@ -943,6 +863,7 @@ public class Str extends ilarkesto.core.base.Str {
 		}
 
 		s = sb.toString();
+
 		s = s.replace("&nbsp;", " ");
 		s = s.replace("&auml;", String.valueOf(ae));
 		s = s.replace("&uuml;", String.valueOf(ue));
@@ -956,6 +877,9 @@ public class Str extends ilarkesto.core.base.Str {
 		s = s.replace("&quot;", "\"");
 		s = s.replace("&lt;", "<");
 		s = s.replace("&gt;", ">");
+		s = s.replace("&bdquo;", "„");
+		s = s.replace("&ldquo;", "“");
+		s = s.replace("&ndash;", "–");
 		s = s.replace("<br>", "\n");
 
 		s = s.replace(" \n", "\n");
@@ -966,6 +890,26 @@ public class Str extends ilarkesto.core.base.Str {
 		s = s.replace("\n\n\n", "\n\n");
 
 		return s.trim();
+	}
+
+	public static String getHtmlBody(String s) {
+		if (s == null) return null;
+
+		// TODO convert encoding if not UTF-8
+
+		int idx = s.indexOf("<body");
+		if (idx < 0) s.indexOf("<BODY");
+		if (idx < 0) return s;
+
+		int startIdx = s.indexOf('>', idx);
+		if (startIdx < 0) return s;
+		startIdx++;
+
+		int endIdx = s.indexOf("</body>", startIdx);
+		if (endIdx < 0) endIdx = s.indexOf("</BODY>", startIdx);
+		if (endIdx < 0) return s.substring(startIdx);
+
+		return s.substring(startIdx, endIdx);
 	}
 
 	private static boolean isTag(String tag, String name) {
@@ -1290,33 +1234,12 @@ public class Str extends ilarkesto.core.base.Str {
 		return ret;
 	}
 
-	public static String[] toStringArray(Collection<String> c) {
-		return toStringArray(c.toArray());
-	}
-
-	public static String[] toStringArray(Object[] oa) {
-		String[] sa = new String[oa.length];
-		for (int i = 0; i < oa.length; i++) {
-			sa[i] = oa[i] == null ? null : oa[i].toString();
-		}
-		return sa;
-	}
-
 	public static boolean equals(String[] sa1, String[] sa2) {
 		if (sa1.length != sa2.length) return false;
 		for (int i = 0; i < sa1.length; i++) {
 			if (!sa1[i].equals(sa2[i])) return false;
 		}
 		return true;
-	}
-
-	public static String[] tokenize(String s, String delimiter) {
-		StringTokenizer tok = new StringTokenizer(s, delimiter);
-		LinkedList<String> ll = new LinkedList<String>();
-		while (tok.hasMoreTokens()) {
-			ll.add(tok.nextToken());
-		}
-		return toStringArray(ll);
 	}
 
 	public static List<String> tokenizeString(String s) {
@@ -1356,6 +1279,10 @@ public class Str extends ilarkesto.core.base.Str {
 		return concat(sa, " ");
 	}
 
+	/**
+	 * @deprecated Use <code>toHtml()</code>
+	 */
+	@Deprecated
 	public static String replaceForHtml(String s) {
 		return toHtml(s);
 	}

@@ -1,10 +1,23 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.base;
 
 import java.awt.Color;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -23,6 +36,44 @@ public class Utl extends ilarkesto.core.base.Utl {
 		for (int i = 0; i < 100; i++) {
 			System.out.println(randomInt(3, 5));
 		}
+	}
+
+	public static String getFirstNonDefaultElementAsString(StackTraceElement[] elements) {
+		StackTraceElement element = getFirstNonDefaultElement(elements);
+		return element == null ? null : element.getClassName() + "." + element.getMethodName();
+	}
+
+	public static StackTraceElement getFirstNonDefaultElement(StackTraceElement[] elements) {
+		if (elements == null || elements.length == 0) return null;
+		for (StackTraceElement element : elements) {
+			String cls = element.getClassName();
+			if (cls.startsWith("java.")) continue;
+			if (cls.startsWith("sun.")) continue;
+			return element;
+		}
+		return elements[elements.length - 1];
+	}
+
+	public static String formatStackTrace(StackTraceElement[] elements, String separator) {
+		StringBuilder sb = new StringBuilder();
+		boolean first = true;
+		int len = elements.length;
+		for (int i = len - 1; i >= 0; i--) {
+			StackTraceElement element = elements[i];
+			if (first) {
+				first = false;
+			} else {
+				sb.append(separator);
+			}
+			sb.append(element.getClassName()).append(".").append(element.getMethodName()).append("()");
+			int line = element.getLineNumber();
+			if (line >= 0) sb.append(":").append(line);
+		}
+		return sb.toString();
+	}
+
+	public static Set<Thread> getAllThreads() {
+		return Thread.getAllStackTraces().keySet();
 	}
 
 	public static File getFirstExistingFile(String... paths) {
@@ -44,11 +95,6 @@ public class Utl extends ilarkesto.core.base.Utl {
 
 	public static Color parseHtmlColor(String color) {
 		return new Color(parseHex(color.substring(1)));
-	}
-
-	public static Throwable getRootCause(Throwable ex) {
-		Throwable cause = ex.getCause();
-		return cause == null ? ex : getRootCause(cause);
 	}
 
 	private static final Random random = new Random(System.currentTimeMillis());
@@ -80,11 +126,16 @@ public class Utl extends ilarkesto.core.base.Utl {
 	}
 
 	public static String toStringWithType(Object o) {
-		return o == null ? "?: null" : o.getClass().getSimpleName() + ": " + o;
+		return o == null ? "?: null" : o.getClass().getSimpleName() + ": " + toString(o);
 	}
 
 	public static String toString(Object o) {
-		return o == null ? null : o.toString();
+		if (o == null) return null;
+		try {
+			return o.toString();
+		} catch (Throwable ex) {
+			return "<toString() error in" + o.getClass().getSimpleName() + ">";
+		}
 	}
 
 	public static String randomElement(String... elements) {
@@ -114,6 +165,12 @@ public class Utl extends ilarkesto.core.base.Utl {
 		return ret;
 	}
 
+	public static String[] toStringArray(Collection<String> elements) {
+		String[] ret = new String[elements.size()];
+		System.arraycopy(elements.toArray(), 0, ret, 0, ret.length);
+		return ret;
+	}
+
 	public static <E> Set<E> toSet(E... elements) {
 		Set<E> ret = new HashSet<E>(elements.length);
 		for (E element : elements) {
@@ -136,18 +193,6 @@ public class Utl extends ilarkesto.core.base.Utl {
 		List<T> result = new ArrayList<T>(count);
 		for (int i = 0; i < count && i < list.size(); i++)
 			result.add(list.get(i));
-		return result;
-	}
-
-	public static <T extends Comparable> List<T> sort(Collection<T> collection) {
-		List<T> result = new ArrayList<T>(collection);
-		Collections.sort(result);
-		return result;
-	}
-
-	public static <T> List<T> sort(Collection<T> collection, Comparator<T> comparator) {
-		List<T> result = new ArrayList<T>(collection);
-		Collections.sort(result, comparator);
 		return result;
 	}
 

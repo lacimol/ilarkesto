@@ -1,4 +1,20 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.base;
+
+import ilarkesto.io.IO;
 
 import java.awt.GraphicsEnvironment;
 import java.io.File;
@@ -21,6 +37,16 @@ public final class Sys {
 
 	public static boolean isProductionMode() {
 		return !isDevelopmentMode();
+	}
+
+	public static long getAvailableMemory() {
+		Runtime runtime = Runtime.getRuntime();
+		long freeMemory = runtime.freeMemory();
+		long totalMemory = runtime.totalMemory();
+		long usedMemory = totalMemory - freeMemory;
+		long maxMemory = runtime.maxMemory();
+		long availableMemory = maxMemory - usedMemory;
+		return availableMemory;
 	}
 
 	public static void storeStartupTime() {
@@ -70,15 +96,19 @@ public final class Sys {
 		setProperty("java.awt.headless", value);
 	}
 
+	public static void setJmxRemote(boolean value) {
+		setProperty("com.sun.management.jmxremote", value);
+	}
+
 	public static boolean isHeadless() {
 		return GraphicsEnvironment.isHeadless();
 	}
 
-	public static void setHttpProxy(String host, int port) {
-		setHttpProxy(host, port, "localhost");
+	public static void setHttpProxy(String host, Integer port) {
+		setHttpProxy(host, port, Utl.toStringArray(IO.getLocalHostNames(true, true)));
 	}
 
-	public static void setHttpProxy(String host, int port, String... nonProxyHosts) {
+	public static void setHttpProxy(String host, Integer port, String... nonProxyHosts) {
 		StringBuilder sb = new StringBuilder();
 		boolean first = true;
 		for (String nonProxyHost : nonProxyHosts) {
@@ -92,10 +122,22 @@ public final class Sys {
 		setHttpProxy(host, port, sb.toString());
 	}
 
-	public static void setHttpProxy(String host, int port, String nonProxyHosts) {
-		System.setProperty("http.proxyHost", host);
-		System.setProperty("http.proxyPort", String.valueOf(port));
-		System.setProperty("http.nonProxyHosts", nonProxyHosts);
+	public static void setHttpProxy(String host, Integer port, String nonProxyHosts) {
+		System.setProperty("http.proxyHost", Str.isBlank(host) ? "" : host);
+		System.setProperty("http.proxyPort", port == null ? "" : port.toString());
+		System.setProperty("http.nonProxyHosts", Str.isBlank(nonProxyHosts) ? "" : nonProxyHosts);
+	}
+
+	public static String getHttpProxyHost() {
+		String value = System.getProperty("http.proxyHost");
+		if (Str.isBlank(value)) return null;
+		return value;
+	}
+
+	public static Integer getHttpProxyPort() {
+		String value = System.getProperty("http.proxyPort");
+		if (Str.isBlank(value)) return null;
+		return Integer.parseInt(value);
 	}
 
 	public static String getJavaRuntimeVersion() {

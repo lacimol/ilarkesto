@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.email;
 
 import ilarkesto.Servers;
@@ -35,6 +49,7 @@ import javax.mail.Flags;
 import javax.mail.Folder;
 import javax.mail.Header;
 import javax.mail.Message;
+import javax.mail.MessageRemovedException;
 import javax.mail.MessagingException;
 import javax.mail.Multipart;
 import javax.mail.NoSuchProviderException;
@@ -158,7 +173,7 @@ public class Eml {
 
 	public static InputStream getAttachment(Part part, String filename) {
 		try {
-			if (filename.equals(part.getFileName())) return part.getInputStream();
+			if (filename.equals(Str.decodeQuotedPrintable(part.getFileName()))) return part.getInputStream();
 			if (part.getContentType().toLowerCase().startsWith("multipart")) {
 				MimeMultipart multipart;
 				multipart = (MimeMultipart) part.getContent();
@@ -176,7 +191,11 @@ public class Eml {
 
 	public static String getContentAsText(Part part) {
 		String result = getPlainTextContent(part);
-		if (result == null) result = Str.html2text(getHtmlTextContent(part));
+		if (result == null) {
+			result = Str.html2text(getHtmlTextContent(part));
+		} else {
+			if (result != null && result.trim().startsWith("<!DOCTYPE HTML")) result = Str.html2text(result);
+		}
 		return result;
 	}
 
@@ -274,6 +293,8 @@ public class Eml {
 		copyMessage(message, destination);
 		try {
 			message.setFlag(Flags.Flag.DELETED, true);
+		} catch (MessageRemovedException ex) {
+			// nop
 		} catch (MessagingException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -285,7 +306,7 @@ public class Eml {
 		boolean destinationOpened = false;
 		Folder source = message.getFolder();
 		try {
-			if (!source.isOpen()) {
+			if (source != null && !source.isOpen()) {
 				source.open(Folder.READ_ONLY);
 				sourceOpened = true;
 			}
@@ -293,10 +314,14 @@ public class Eml {
 				destination.open(Folder.READ_WRITE);
 				destinationOpened = true;
 			}
-			try {
-				source.copyMessages(new Message[] { message }, destination);
-			} catch (MessagingException e) {
+			if (source == null) {
 				destination.appendMessages(new Message[] { message });
+			} else {
+				try {
+					source.copyMessages(new Message[] { message }, destination);
+				} catch (MessagingException e) {
+					destination.appendMessages(new Message[] { message });
+				}
 			}
 		} catch (MessagingException ex) {
 			throw new RuntimeException("Copying message " + toString(message) + " from " + source.getName() + " to "
@@ -309,12 +334,12 @@ public class Eml {
 
 	public static String toString(Message message) {
 		StringBuilder sb = new StringBuilder();
-		sb.append(getFromFormated(message));
-		sb.append(":");
 		try {
+			sb.append(getFromFormated(message));
+			sb.append(":");
 			sb.append(message.getSubject());
-		} catch (MessagingException ex) {
-			throw new RuntimeException(ex);
+		} catch (Throwable ex) {
+			message.toString();
 		}
 		return sb.toString();
 	}
@@ -522,7 +547,7 @@ public class Eml {
 		p.setProperty("mail.mime.charset", charset);
 		p.setProperty("mail.transport.protocol", "smtp");
 		p.setProperty("mail.smtp.host", host);
-		if (port != null) p.put("mail.smtp.port", port);
+		if (port != null) p.put("mail.smtp.port", port.toString());
 		p.put("mail.smtp.starttls.enable", String.valueOf(tls));
 
 		boolean auth = user != null && password != null;

@@ -1,3 +1,17 @@
+/*
+ * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
+ * 
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with this program. If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
 package ilarkesto.ui.web;
 
 import java.io.PrintWriter;
@@ -276,6 +290,14 @@ public class CssRenderer {
 			return attr("text-align", value);
 		}
 
+		public Style textShadowNone() {
+			return attr("text-shadow", "none");
+		}
+
+		public Style textShadow(int xOff, int yOff, int blur, String color) {
+			return attr("text-shadow", xOff + "px " + yOff + "px " + blur + "px " + color);
+		}
+
 		public Style float_(String value) {
 			return attr("float", value);
 		}
@@ -302,6 +324,10 @@ public class CssRenderer {
 
 		public Style textDecorationNone() {
 			return textDecoration("none");
+		}
+
+		public Style textDecorationBlink() {
+			return textDecoration("blink");
 		}
 
 		public Style textDecorationLineThrough() {
@@ -338,6 +364,10 @@ public class CssRenderer {
 
 		public Style overflowAuto() {
 			return overflow("auto");
+		}
+
+		public Style overflowScroll() {
+			return overflow("scroll");
 		}
 
 		public Style overflow(String value) {
@@ -409,8 +439,13 @@ public class CssRenderer {
 		}
 
 		public Style borderRadius(int value) {
-			attr("-webkit-border-radius", value + "px");
-			return attr("-moz-border-radius", value + "px");
+			attr("border-radius", value + "px " + value + "px " + value + "px " + value + "px");
+			attr("-moz-border-radius", value + "px");
+			attr("-webkit-border-top-left-radius", value + "px");
+			attr("-webkit-border-top-right-radius", value + "px");
+			attr("-webkit-border-bottom-left-radius", value + "px");
+			attr("-webkit-border-bottom-right-radius", value + "px");
+			return this;
 		}
 
 		public Style columnWidth(int value) {
@@ -564,6 +599,23 @@ public class CssRenderer {
 			return margin(topBottom + "px " + leftRight + "px");
 		}
 
+		public Style margin(String top, String right, String bottom, String left) {
+			StringBuilder sb = new StringBuilder();
+			sb.append(top == null ? "0" : top);
+			sb.append(" ").append(right == null ? "0" : right);
+			sb.append(" ").append(bottom == null ? "0" : bottom);
+			sb.append(" ").append(left == null ? "0" : left);
+			return margin(sb.toString());
+		}
+
+		public Style marginCentered(int top, int bottom) {
+			return margin(String.valueOf(top) + "px", "auto", String.valueOf(bottom) + "px", "auto");
+		}
+
+		public Style marginCentered() {
+			return marginCentered(0, 0);
+		}
+
 		public Style margin(String margin) {
 			return attr("margin", margin);
 		}
@@ -606,6 +658,20 @@ public class CssRenderer {
 
 		public Style background(String color, String url, String repeat) {
 			return attr("background", color + " url(" + url + ") " + repeat);
+		}
+
+		public Style backgroundGradient(String topColor, String bottomColor) {
+			background(topColor);
+			background("-moz-linear-gradient(top,  " + topColor + " 0%, " + bottomColor + " 100%)");
+			background("-webkit-gradient(linear, left top, left bottom, color-stop(0%," + topColor
+					+ "), color-stop(100%," + bottomColor + "))");
+			background("-webkit-linear-gradient(top,  " + topColor + " 0%," + bottomColor + " 100%)");
+			background("-o-linear-gradient(top,  " + topColor + " 0%," + bottomColor + " 100%)");
+			background("-ms-linear-gradient(top,  " + topColor + " 0%," + bottomColor + " 100%)");
+			background("linear-gradient(top,  " + topColor + " 0%," + bottomColor + " 100%)");
+			attr("filter", "progid:DXImageTransform.Microsoft.gradient( startColorstr='" + topColor
+					+ "', endColorstr='" + bottomColor + "',GradientType=0 )");
+			return this;
 		}
 
 		public Style backgroundUrl(String imageUrl) {
