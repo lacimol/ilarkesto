@@ -18,10 +18,12 @@ import ilarkesto.base.Str;
 import ilarkesto.base.Sys;
 import ilarkesto.base.Tm;
 import ilarkesto.base.Utl;
+import ilarkesto.base.time.DateAndTime;
 import ilarkesto.base.time.Time;
 import ilarkesto.concurrent.ATask;
 import ilarkesto.concurrent.TaskManager;
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.TimePeriod;
 import ilarkesto.di.Context;
 import ilarkesto.integration.xstream.XStreamSerializer;
 import ilarkesto.io.ExclusiveFileLock;
@@ -37,6 +39,7 @@ import ilarkesto.persistence.TransactionService;
 import ilarkesto.properties.FilePropertiesStore;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.util.Properties;
 import java.util.Set;
 
@@ -73,41 +76,47 @@ public abstract class AApplication {
 
 	public final void start() {
 		if (instance != null) { throw new RuntimeException("An Application already started: " + instance); }
-		instance = this;
+		synchronized (getApplicationLock()) {
 
-		log.info("\n\n     DATA PATH:", getApplicationDataDir(), "\n\n");
+			instance = this;
 
-		context = Context.createRootContext("app:" + getApplicationName());
-		context.addBeanProvider(this);
+			log.info("\n\n     DATA PATH:", getApplicationDataDir(), "\n\n");
 
-		if (isSingleton()) {
-			File lockFile = new File(getApplicationDataDir() + "/.lock");
-			for (int i = 0; i < 10; i++) {
-				try {
-					exclusiveFileLock = new ExclusiveFileLock(lockFile);
-					break;
-				} catch (FileLockedException ex) {
-					log.info("Application already running. Lock file locked: " + lockFile.getAbsolutePath());
+			context = Context.createRootContext("app:" + getApplicationName());
+			context.addBeanProvider(this);
+
+			if (isSingleton()) {
+				File lockFile = new File(getApplicationDataDir() + "/.lock");
+				for (int i = 0; i < 10; i++) {
+					try {
+						exclusiveFileLock = new ExclusiveFileLock(lockFile);
+						break;
+					} catch (FileLockedException ex) {
+						log.info("Application already running. Lock file locked: " + lockFile.getAbsolutePath());
+					}
+					Utl.sleep(1000);
 				}
-				Utl.sleep(1000);
+				if (exclusiveFileLock == null) {
+					log.fatal("Application startup failed. Another instance is running. Lock file: "
+							+ lockFile.getAbsolutePath());
+					shutdown();
+					return;
+				}
 			}
-			if (exclusiveFileLock == null) {
-				log.fatal("Application startup failed. Another instance is running. Lock file: "
-						+ lockFile.getAbsolutePath());
-				shutdown();
-				return;
+
+			try {
+				getApplicationConfig();
+				backupApplicationDataDir();
+				deleteOldApplicationDataDirBackups();
+				ensureIntegrity();
+				onStart();
+			} catch (Throwable ex) {
+				APPLICATION_LOCK = null;
+				throw new RuntimeException("Application startup failed.", ex);
 			}
-		}
 
-		try {
-			ensureIntegrity();
-			onStart();
-		} catch (Throwable ex) {
-			APPLICATION_LOCK = null;
-			throw new RuntimeException("Application startup failed.", ex);
+			scheduleTasks(getTaskManager());
 		}
-
-		scheduleTasks(getTaskManager());
 	}
 
 	public final void shutdown() {
@@ -139,6 +148,58 @@ public abstract class AApplication {
 		});
 		thread.setName(getApplicationName() + " shutdown");
 		thread.start();
+	}
+
+	public void backupApplicationDataDir() {
+		try {
+			final File dir = new File(getApplicationDataDir());
+			File backupFile = new File(dir.getPath() + "/backups/" + getApplicationName() + "-data_"
+					+ DateAndTime.now().toString(DateAndTime.FORMAT_LOG) + ".zip");
+			log.info("Backing up application data dir:", dir.getAbsolutePath(), "into", backupFile);
+			long starttime = System.currentTimeMillis();
+			Object lock = entityStore == null ? this : entityStore;
+			synchronized (lock) {
+
+				IO.zip(backupFile, new File[] { dir }, new FileFilter() {
+
+					@Override
+					public boolean accept(File file) {
+						if (file.getParentFile().equals(dir)) {
+							// base dir
+							String name = file.getName();
+							if (name.equals("backups")) return false;
+							if (name.equals("entities-rescue")) return false;
+							if (name.equals("tmp")) return false;
+							if (name.startsWith("gwt-")) return false;
+							// if (file.isDirectory()) log.info("    Zipping", file.getPath());
+							log.info("    Zipping", file.getPath(), file.getName());
+						}
+						return true;
+					}
+				});
+			}
+			long runtime = System.currentTimeMillis() - starttime;
+			log.info("  Backup completed in", new TimePeriod(runtime).toShortestString());
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	private void deleteOldApplicationDataDirBackups() {
+		File backupDir = new File(getApplicationDataDir() + "/backups");
+		File[] files = backupDir.listFiles();
+		if (files == null || files.length == 0) return;
+
+		log.info("Deleting old backup files from", backupDir);
+		final long deadline = System.currentTimeMillis() - Tm.DAY * 7;
+
+		for (File file : files) {
+			if (!file.getName().startsWith(getApplicationName())) continue;
+			if (file.lastModified() >= deadline) continue;
+			log.debug("    Deleting", file);
+			IO.delete(file);
+		}
 	}
 
 	public final <T> T autowire(T bean) {
@@ -247,35 +308,6 @@ public abstract class AApplication {
 			}
 		}
 		return buildProperties;
-	}
-
-	public void deleteOldBackupFiles(String backupDir) {
-		log.info("Deleting old backup files from:", backupDir);
-		final long deadline = System.currentTimeMillis() - Tm.DAY * 3;
-		IO.FileProcessor processor = new IO.FileProcessor() {
-
-			@Override
-			public boolean isAbortRequested() {
-				return false;
-			}
-
-			@Override
-			public void onFile(File file) {
-				if (file.lastModified() < deadline) IO.delete(file);
-			}
-
-			@Override
-			public boolean onFolderBegin(File folder) {
-				return true;
-			}
-
-			@Override
-			public void onFolderEnd(File folder) {
-				folder.delete();
-			}
-
-		};
-		IO.process(backupDir, processor);
 	}
 
 	public boolean isDevelopmentMode() {

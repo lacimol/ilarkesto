@@ -14,7 +14,6 @@
  */
 package ilarkesto.persistence;
 
-import ilarkesto.base.Utl;
 import ilarkesto.base.time.Date;
 import ilarkesto.core.base.Str;
 import ilarkesto.core.logging.Log;
@@ -39,7 +38,7 @@ import java.util.Set;
 
 public class FileEntityStore implements EntityStore {
 
-	private static final Log LOG = Log.get(FileEntityStore.class);
+	private static final Log log = Log.get(FileEntityStore.class);
 
 	public static String CLUSTER_FILE_NAME = "cluster.xml";
 
@@ -86,82 +85,40 @@ public class FileEntityStore implements EntityStore {
 	public synchronized void lock() {
 		if (locked) return;
 		locked = true;
-		LOG.info("File entity store locked.");
+		log.info("File entity store locked.");
 	}
 
 	@Override
-	public void unlock() {
-		if (!locked) return;
-		locked = false;
-		LOG.info("File entity store unlocked.");
-	}
-
-	@Override
-	public synchronized void save(AEntity entity) {
-		sleepWhileLocked();
+	public synchronized void persist(Collection<AEntity> entitiesToSave, Collection<AEntity> entitiesToDelete) {
+		if (locked) throw new RuntimeException("Can not persist entity changes. EntityStore already locked.");
 
 		if (!versionSaved) saveVersion();
 
-		String alias = aliases.get(entity.getClass());
-		File tmpFile = new File(dir + "/tmp/" + entity.getId() + ".xml");
-
-		if (!tmpFile.getParentFile().exists()) {
-			tmpFile.getParentFile().mkdirs();
+		// create operations
+		List<Operation> operations = new ArrayList<FileEntityStore.Operation>(entitiesToSave.size()
+				+ entitiesToDelete.size());
+		for (AEntity entity : entitiesToSave) {
+			operations.add(new SaveOperation(entity));
+		}
+		for (AEntity entity : entitiesToDelete) {
+			operations.add(new DeleteOperation(entity));
 		}
 
-		// save
-		BufferedOutputStream out;
-		try {
-			out = new BufferedOutputStream(new FileOutputStream(tmpFile));
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
-		}
-		beanSerializer.serialize(entity, out);
-		try {
-			out.close();
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
+		// prepare operations
+		for (Operation operation : operations) {
+			operation.prepare();
 		}
 
-		File file = new File(dir + "/" + alias + "/" + entity.getId() + ".xml");
-
-		// backup
-		if (file.exists() && !(entity instanceof BackupHostile)) {
-			backup(file, entity.getDao().getEntityName());
+		// complete operations (critical)
+		for (Operation operation : operations) {
+			operation.complete();
 		}
 
-		IO.move(tmpFile, file, true);
-
-		getDao(entity.getClass()).put(entity.getId(), entity);
-
-		LOG.debug("Entity saved:", entity, "->", file.getPath());
-	}
-
-	@Override
-	public synchronized void delete(AEntity entity) {
-		sleepWhileLocked();
-
-		String alias = aliases.get(entity.getClass());
-		File file = new File(dir + "/" + alias + "/" + entity.getId() + ".xml");
-
-		// backup
-		if (file.exists() && !(entity instanceof BackupHostile)) {
-			backup(file, entity.getDao().getEntityName());
+		StringBuilder sb = new StringBuilder();
+		for (Operation operation : operations) {
+			sb.append("\n    ").append(operation.toString());
 		}
-
-		// delete
-		if (!file.delete() && file.exists())
-			throw new RuntimeException("Deleting entity file failed: " + file.getAbsolutePath());
-
-		getDao(entity.getClass()).remove(entity.getId());
-
-		LOG.debug("Entity deleted:", file.getPath(), entity.getClass().getSimpleName(), entity);
-	}
-
-	private void sleepWhileLocked() {
-		while (locked) {
-			Utl.sleep(100);
-		}
+		log.debug("Entity changes persisted.", sb.toString());
 	}
 
 	private Map<String, AEntity> getDao(Class<? extends AEntity> type) {
@@ -265,7 +222,7 @@ public class FileEntityStore implements EntityStore {
 
 		File[] files = entitiesDir.listFiles();
 		int count = files == null ? 0 : files.length;
-		LOG.info("Loading", count, "entitiy files:", alias);
+		log.info("Loading", count, "entitiy files:", alias);
 		if (count > 0) {
 			for (int i = 0; i < files.length; i++) {
 				File file = files[i];
@@ -273,7 +230,7 @@ public class FileEntityStore implements EntityStore {
 
 				if (filename.equals(CLUSTER_FILE_NAME)) continue;
 				if (!filename.endsWith(".xml")) {
-					LOG.warn("Unsupported file. Skipping:", filename);
+					log.warn("Unsupported file. Skipping:", filename);
 					continue;
 				}
 
@@ -372,7 +329,7 @@ public class FileEntityStore implements EntityStore {
 		File[] dirs = new File(backupDir).listFiles();
 		if (dirs == null || dirs.length == 0) return;
 		Date deadline = Date.beforeDays(7);
-		LOG.info("Deleting temporary entity backups from before", deadline);
+		log.info("Deleting temporary entity backups from before", deadline);
 		for (File dir : dirs) {
 			if (!dir.isDirectory()) continue;
 			String name = dir.getName();
@@ -383,7 +340,7 @@ public class FileEntityStore implements EntityStore {
 				continue;
 			}
 			if (date.isBefore(deadline)) {
-				LOG.debug("    Deleting temporary enity backups:", name);
+				log.debug("    Deleting temporary enity backups:", name);
 				IO.delete(dir);
 			}
 		}
@@ -391,6 +348,106 @@ public class FileEntityStore implements EntityStore {
 
 	private File getPropertiesFile() {
 		return new File(dir + "/store.properties");
+	}
+
+	abstract class Operation {
+
+		protected abstract void prepare();
+
+		protected abstract void complete();
+
+		protected AEntity entity;
+
+		public Operation(AEntity entity) {
+			this.entity = entity;
+		}
+
+	}
+
+	class SaveOperation extends Operation {
+
+		private File tmpFile;
+		private File file;
+
+		public SaveOperation(AEntity entity) {
+			super(entity);
+		}
+
+		@Override
+		protected void prepare() {
+			tmpFile = new File(dir + "/tmp/" + entity.getId() + ".xml");
+			file = new File(dir + "/" + entity.getDao().getEntityName() + "/" + entity.getId() + ".xml");
+
+			wirteTemporaryFile();
+			backupExistingFile();
+		}
+
+		@Override
+		protected void complete() {
+			IO.move(tmpFile, file, true);
+			getDao(entity.getClass()).put(entity.getId(), entity);
+		}
+
+		public void backupExistingFile() {
+			if (file.exists() && !(entity instanceof BackupHostile)) {
+				backup(file, entity.getDao().getEntityName());
+			}
+		}
+
+		public void wirteTemporaryFile() {
+			if (!tmpFile.getParentFile().exists()) tmpFile.getParentFile().mkdirs();
+			BufferedOutputStream out;
+			try {
+				out = new BufferedOutputStream(new FileOutputStream(tmpFile));
+			} catch (IOException ex) {
+				throw new RuntimeException(ex);
+			}
+			beanSerializer.serialize(entity, out);
+			IO.close(out);
+
+			if (!tmpFile.exists()) throw new RuntimeException("Writing entity file failed: " + tmpFile.getPath());
+
+			if (tmpFile.length() < 1)
+				throw new RuntimeException("Writing entity file caused empty file: " + tmpFile.getPath());
+		}
+
+		@Override
+		public String toString() {
+			return "SAVED " + file.getPath() + " -> " + entity;
+		}
+
+	}
+
+	class DeleteOperation extends Operation {
+
+		private File file;
+
+		public DeleteOperation(AEntity entity) {
+			super(entity);
+		}
+
+		@Override
+		protected void prepare() {
+			file = new File(dir + "/" + entity.getDao().getEntityName() + "/" + entity.getId() + ".xml");
+
+			// backup
+			if (file.exists() && !(entity instanceof BackupHostile)) {
+				backup(file, entity.getDao().getEntityName());
+			}
+
+		}
+
+		@Override
+		protected void complete() {
+			IO.delete(file);
+			getDao(entity.getClass()).remove(entity.getId());
+		}
+
+		@Override
+		public String toString() {
+			return "DELETED " + file.getPath();
+		}
+
 	}
 
 }

@@ -1,4 +1,4 @@
-package ilarkesto.core.json;
+package ilarkesto.json;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -116,7 +116,7 @@ public class JsonObject {
 	}
 
 	public String toFormatedString() {
-		return toFormatedString(0);
+		return toFormatedString(2);
 	}
 
 	@Override

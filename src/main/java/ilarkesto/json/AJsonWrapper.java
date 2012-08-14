@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License along with this program. If not,
  * see <http://www.gnu.org/licenses/>.
  */
-package ilarkesto.core.json;
+package ilarkesto.json;
 
 import ilarkesto.core.base.Str;
 
@@ -71,6 +71,12 @@ public abstract class AJsonWrapper {
 		return wrappers;
 	}
 
+	protected <T extends AJsonWrapper> T createFromObject(String name, Class<T> type) {
+		JsonObject object = json.getObject(name);
+		if (object == null) return null;
+		return createWrapper(object, type);
+	}
+
 	private <T extends AJsonWrapper> T createWrapper(JsonObject json, Class<T> type) {
 		Constructor<T> constructor;
 		try {
@@ -89,6 +95,11 @@ public abstract class AJsonWrapper {
 
 	public JsonObject getJson() {
 		return json;
+	}
+
+	@Override
+	public String toString() {
+		return json.toFormatedString();
 	}
 
 }

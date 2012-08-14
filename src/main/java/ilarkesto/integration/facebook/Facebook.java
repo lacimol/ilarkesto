@@ -3,13 +3,18 @@ package ilarkesto.integration.facebook;
 import ilarkesto.auth.LoginData;
 import ilarkesto.auth.LoginDataProvider;
 import ilarkesto.base.Str;
-import ilarkesto.core.json.JsonObject;
+import ilarkesto.base.time.DateAndTime;
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.Date;
 import ilarkesto.integration.oauth.OAuth;
 import ilarkesto.io.IO;
+import ilarkesto.json.JsonObject;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Properties;
 
 import org.scribe.builder.api.FacebookApi;
@@ -39,11 +44,17 @@ public class Facebook {
 
 		String accessToken = properties.getProperty("facebook.oauth.accesstoken");
 
+		// System.out.println(facebook.loadMeLikes(accessToken, null));
 		System.out.println(facebook.loadMe(accessToken));
 	}
 
+	public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZZZZZ");
+
 	public static final String PERMISSION_READ_STREAM = "read_stream";
 	public static final String PERMISSION_USER_ACTIVITIES = "user_activities";
+	public static final String PERMISSION_USER_LIKES = "user_likes";
+	public static final String PERMISSION_USER_EVENTS = "user_events";
+	public static final String PERMISSION_USER_PHOTOS = "user_photos";
 	public static final String PERMISSION_OFFLINE_ACCESS = "offline_access";
 
 	private static Log log = Log.get(Facebook.class);
@@ -57,18 +68,44 @@ public class Facebook {
 		this.callbackUri = callbackUri;
 	}
 
+	public List<Like> loadMeLikes(String oauthAccessToken, Date deadline) {
+		JsonObject json = loadJson(oauthAccessToken, "me/likes");
+		List<JsonObject> data = json.getArrayOfObjects("data");
+		List<Like> likes = new ArrayList<Like>(data.size());
+		for (JsonObject jLike : data) {
+			String id = jLike.getString("id");
+			if (id == null) {
+				log.warn("Element has no id:", jLike);
+				continue;
+			}
+			Like like = new Like(jLike);
+			if (deadline != null) {
+				DateAndTime createdTime = like.getCreatedTime();
+				if (createdTime == null) continue;
+				if (createdTime.isBefore(deadline)) continue;
+			}
+			JsonObject jSubject = loadJson(oauthAccessToken, id);
+			jLike.put("id__loaded", jSubject);
+			likes.add(like);
+		}
+		return likes;
+	}
+
 	public Person loadMe(String oauthAccessToken) {
-		JsonObject json = OAuth.loadUrlAsJson(getOauthService(), new LoginData(oauthAccessToken, null),
-			"https://graph.facebook.com/me");
-		log.info("Loaded me:", json);
+		JsonObject json = loadJson(oauthAccessToken, "me");
 		return new Person(json);
 	}
 
-	public Feed loadMeFeed(String oauthAccessToken) {
+	public MeFeed loadMeFeed(String oauthAccessToken) {
+		JsonObject json = loadJson(oauthAccessToken, "me/feed");
+		return new MeFeed(json);
+	}
+
+	public JsonObject loadJson(String oauthAccessToken, String id) {
 		JsonObject json = OAuth.loadUrlAsJson(getOauthService(), new LoginData(oauthAccessToken, null),
-			"https://graph.facebook.com/me/feed");
-		log.info("Loaded me/feed:", json);
-		return new Feed(json);
+			"https://graph.facebook.com/" + id);
+		log.info("Loaded", id, "->", json.toFormatedString());
+		return json;
 	}
 
 	public String createAccessToken(String code) {
@@ -91,6 +128,17 @@ public class Facebook {
 	private OAuthService getOauthService() {
 		if (oauthService == null) oauthService = OAuth.createService(FacebookApi.class, oauthApiKey, callbackUri);
 		return oauthService;
+	}
+
+	// --- helper ---
+
+	public static java.util.Date parseDate(String s) {
+		if (s == null) return null;
+		try {
+			return DATE_FORMAT.parse(s);
+		} catch (java.text.ParseException ex) {
+			throw new RuntimeException("Parsing date with format \"" + DATE_FORMAT.toString() + "\" failed: " + s, ex);
+		}
 	}
 
 }
