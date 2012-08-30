@@ -34,12 +34,13 @@ public class Page extends AHtmlContainerElement {
 		return addChild(new Content());
 	}
 
-	public void addHeaderH1(String h1) {
+	public void addHeaderWithH1(String h1) {
 		addHeader().addHtmlRenderer().H1(h1);
 	}
 
 	@Override
 	protected void renderHeader(HtmlRenderer html) {
+		html.nl();
 		Tag div = html.startDIV();
 		div.setDataRole("page");
 		if (style != null) div.setStyle(style);

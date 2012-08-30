@@ -53,6 +53,7 @@ public abstract class AApplication {
 	private static Log log = Log.get(AApplication.class);
 
 	private ExclusiveFileLock exclusiveFileLock;
+	private boolean shuttingDown;
 	private boolean shutdown;
 
 	protected abstract void onStart();
@@ -147,6 +148,7 @@ public abstract class AApplication {
 
 		});
 		thread.setName(getApplicationName() + " shutdown");
+		shuttingDown = true;
 		thread.start();
 	}
 
@@ -159,7 +161,6 @@ public abstract class AApplication {
 			long starttime = System.currentTimeMillis();
 			Object lock = entityStore == null ? this : entityStore;
 			synchronized (lock) {
-
 				IO.zip(backupFile, new File[] { dir }, new FileFilter() {
 
 					@Override
@@ -171,8 +172,7 @@ public abstract class AApplication {
 							if (name.equals("entities-rescue")) return false;
 							if (name.equals("tmp")) return false;
 							if (name.startsWith("gwt-")) return false;
-							// if (file.isDirectory()) log.info("    Zipping", file.getPath());
-							log.info("    Zipping", file.getPath(), file.getName());
+							if (file.isDirectory()) log.info("    Zipping", file.getPath());
 						}
 						return true;
 					}
@@ -181,24 +181,25 @@ public abstract class AApplication {
 			long runtime = System.currentTimeMillis() - starttime;
 			log.info("  Backup completed in", new TimePeriod(runtime).toShortestString());
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			log.info("  Backup error: ", e);
 		}
 	}
 
 	private void deleteOldApplicationDataDirBackups() {
-		File backupDir = new File(getApplicationDataDir() + "/backups");
-		File[] files = backupDir.listFiles();
-		if (files == null || files.length == 0) return;
-
-		log.info("Deleting old backup files from", backupDir);
-		final long deadline = System.currentTimeMillis() - Tm.DAY * 7;
-
-		for (File file : files) {
-			if (!file.getName().startsWith(getApplicationName())) continue;
-			if (file.lastModified() >= deadline) continue;
-			log.debug("    Deleting", file);
-			IO.delete(file);
+		try {
+			File backupDir = new File(getApplicationDataDir() + "/backups");
+			File[] files = backupDir.listFiles();
+			if (files == null || files.length == 0) return;
+			log.info("Deleting old backup files from", backupDir);
+			final long deadline = System.currentTimeMillis() - Tm.DAY * 7;
+			for (File file : files) {
+				if (!file.getName().startsWith(getApplicationName())) continue;
+				if (file.lastModified() >= deadline && !file.getName().endsWith(".zip~")) continue;
+				log.debug("    Deleting", file);
+				IO.delete(file);
+			}
+		} catch (Exception e) {
+			log.error("Delete old backup error: ", e);
 		}
 	}
 
@@ -316,6 +317,10 @@ public abstract class AApplication {
 
 	public final boolean isProductionMode() {
 		return !isDevelopmentMode();
+	}
+
+	public boolean isShuttingDown() {
+		return shuttingDown;
 	}
 
 	public boolean isShutdown() {

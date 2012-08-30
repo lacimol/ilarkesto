@@ -1,10 +1,18 @@
 #!/bin/bash
 
-cd
-mkdir ilarkesto-istall
-cd ilarkesto-install
-wget http://servisto.de/projects/ilarkesto/ilarkesto.tar.gz
+TMP_DIR=~/ilarkesto-install-tmp
+
+rm -rf $TMP_DIR
+mkdir $TMP_DIR
+cd $TMP_DIR
+
+wget https://servisto.de/projects/ilarkesto/ilarkesto.tbz
 if [ $? != 0 ]; then exit 1; fi
-sudo tar -xvzf ilarkesto.tar.gz -C /opt
-cd ..
-rm -rf ilarkesto-install
+
+sudo rm -rf /opt/ilarkesto
+if [ $? != 0 ]; then exit 1; fi
+
+sudo tar -xvjf ilarkesto.tbz -C /opt
+if [ $? != 0 ]; then exit 1; fi
+
+rm -rf $TMP_DIR

@@ -45,8 +45,12 @@ public class Content extends AHtmlContainerElement {
 		return addChild(new Form(id, action));
 	}
 
-	public Listview addList() {
+	public Listview addListview() {
 		return addChild(new Listview());
+	}
+
+	public Popup addPopup(String id) {
+		return addChild(new Popup(id));
 	}
 
 	@Override

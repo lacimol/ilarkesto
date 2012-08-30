@@ -164,7 +164,7 @@ public class Str extends ilarkesto.core.base.Str {
 		String charSet = charSet1;
 		for (int i = 0; i < length; i++) {
 			if (Utl.randomInt(0, 8) != 0) {
-				if (charSet == charSet1) {
+				if (charSet.equals(charSet1)) {
 					charSet = charSet2;
 				} else {
 					charSet = charSet1;
@@ -283,11 +283,11 @@ public class Str extends ilarkesto.core.base.Str {
 
 	public static boolean isReadable(char c) {
 		if (Character.isLetterOrDigit(c)) return true;
-		if (c == ' ' || c == '\n' || c == '!' || c == '"' || c == '�' || c == '$' || c == '%' || c == '&' || c == '/'
+		if (c == ' ' || c == '\n' || c == '!' || c == '"' || c == '§' || c == '$' || c == '%' || c == '&' || c == '/'
 				|| c == '(' || c == ')' || c == '=' || c == '?' || c == '{' || c == '}' || c == '[' || c == ']'
 				|| c == '\\' || c == '*' || c == '+' || c == '~' || c == '#' || c == '\'' || c == '-' || c == '_'
-				|| c == '.' || c == ':' || c == ',' || c == ';' || c == '�' || c == '<' || c == '>' || c == '@'
-				|| c == EUR || c == '^' || c == '�' || c == '�' || c == '�' || c == '|') return true;
+				|| c == '.' || c == ':' || c == ',' || c == ';' || c == '<' || c == '>' || c == '@' || c == EUR
+				|| c == '^' || c == '|' || c == 'µ' || c == '²' || c == '³') return true;
 		return false;
 	}
 
@@ -338,7 +338,7 @@ public class Str extends ilarkesto.core.base.Str {
 					result.append("\" target=\"_blank\">");
 
 					String convertedUrl = linkConverter == null ? url : linkConverter.convert(url, maxWidth);
-					if (convertedUrl == url) {
+					if (url.equals(convertedUrl)) {
 						String label = url;
 						if (url.startsWith("http://")) url = url.substring(7);
 						if (url.startsWith("https://")) url = url.substring(8);
@@ -478,8 +478,14 @@ public class Str extends ilarkesto.core.base.Str {
 					continue;
 				}
 				char afterNext = s.charAt(i + 2);
-				int ch = Integer.valueOf(String.valueOf(next) + afterNext, 16);
-				sb.append((char) ch);
+				int chi = Integer.valueOf(String.valueOf(next) + afterNext, 16);
+				char ch = (char) chi;
+				if (!Character.isDefined(chi) || Character.isHighSurrogate(ch) || Character.isISOControl(chi)
+						|| Character.isSupplementaryCodePoint(chi)) {
+					sb.append(' ');
+				} else {
+					sb.append(chi);
+				}
 				i += 2;
 			} else if (c == '_') {
 				sb.append(' ');
@@ -898,7 +904,7 @@ public class Str extends ilarkesto.core.base.Str {
 		// TODO convert encoding if not UTF-8
 
 		int idx = s.indexOf("<body");
-		if (idx < 0) s.indexOf("<BODY");
+		if (idx < 0) idx = s.indexOf("<BODY");
 		if (idx < 0) return s;
 
 		int startIdx = s.indexOf('>', idx);

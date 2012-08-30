@@ -22,6 +22,9 @@ import ilarkesto.id.IdGenerator;
 import ilarkesto.integration.links.MultiLinkConverter;
 import ilarkesto.io.IO;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -32,11 +35,12 @@ public class HtmlRenderer {
 
 	private PrintWriter out;
 	private String encoding = IO.UTF_8;
-	private StringWriter buffer;
+
+	private StringWriter buffer; // optional
+	private FileWriter fileWriter; // optional
 
 	private String startingTag;
-
-	private Tag tag = new Tag();
+	private int depth;
 
 	public HtmlRenderer() {
 		buffer = new StringWriter();
@@ -52,8 +56,33 @@ public class HtmlRenderer {
 		this(new PrintWriter(new OutputStreamWriter(out, encoding)), encoding);
 	}
 
+	public HtmlRenderer(FileWriter fileWriter, String encoding) {
+		this(new PrintWriter(fileWriter), encoding);
+		this.fileWriter = fileWriter;
+	}
+
+	public HtmlRenderer(File file, String encoding) throws IOException {
+		this(new FileWriter(file), encoding);
+	}
+
+	public void setIndentationDepth(int depth) {
+		this.depth = depth;
+	}
+
 	public void flush() {
 		out.flush();
+	}
+
+	public void close() {
+		flush();
+		out.close();
+		if (fileWriter != null) {
+			try {
+				fileWriter.close();
+			} catch (IOException ex) {
+				throw new RuntimeException(ex);
+			}
+		}
 	}
 
 	public void flattrCompactStatic(String thingUrl) {
@@ -220,8 +249,7 @@ public class HtmlRenderer {
 	private static final String HR = "hr";
 
 	public void HR() {
-		startTag(HR);
-		endShortTag();
+		startTag(HR).end();
 	}
 
 	// --- BR ---
@@ -229,8 +257,7 @@ public class HtmlRenderer {
 	private static final String BR = "br";
 
 	public void BR() {
-		startTag(BR);
-		endShortTag();
+		startTag(BR).end();
 	}
 
 	public void BR(int count) {
@@ -319,8 +346,7 @@ public class HtmlRenderer {
 	}
 
 	public void INPUTreset(String value, String onclick) {
-		Tag tag = startTag(INPUT).set("type", "reset").set("value", value).setOnclick(onclick);
-		endShortTag();
+		startTag(INPUT).set("type", "reset").set("value", value).setOnclick(onclick).end();
 	}
 
 	private static final IdGenerator dateIdGenerator = new CountingIdGenerator("date");
@@ -344,8 +370,7 @@ public class HtmlRenderer {
 	}
 
 	public void INPUThidden(String name, String value) {
-		INPUT("hidden", name, value);
-		endShortTag();
+		INPUT("hidden", name, value).end();
 	}
 
 	public void INPUTsubmit(String name, String label, String onclick, Character accessKey) {
@@ -358,7 +383,7 @@ public class HtmlRenderer {
 		tag.set("accesskey", accessKey);
 		tag.setStyle(style);
 		if (onclick != null) tag.setOnclick(onclick);
-		endShortTag();
+		tag.end();
 	}
 
 	public void INPUTtext(String name, String value, int width) {
@@ -376,17 +401,15 @@ public class HtmlRenderer {
 	public void INPUTtext(String id, String name, String value, int width, String style) {
 		Tag tag = INPUT("text", name, value).setId(id).set("size", width).setClass("inputText").setStyle(style);
 		tag.setOnfocus("javascript:select();");
-		endShortTag();
+		tag.end();
 	}
 
 	public void INPUTpassword(String name, int width, String value) {
-		INPUT("password", name, value).set("size", width).setClass("inputText");
-		endShortTag();
+		INPUT("password", name, value).set("size", width).setClass("inputText").end();
 	}
 
 	public void INPUTpassword(String id, String name, int width, String value) {
-		INPUT("password", name, value).set("id", id).set("size", width).setClass("inputText");
-		endShortTag();
+		INPUT("password", name, value).set("id", id).set("size", width).setClass("inputText").end();
 	}
 
 	public void INPUTcheckbox(String id, String name, boolean checked) {
@@ -488,11 +511,13 @@ public class HtmlRenderer {
 
 	public void startHEAD(String title, String language) {
 		startTag(HEAD);
-		startTag(META, true).set("name", "viewport").set("content",
-			"width=device-width; initial-scale=1.0; maximum-scale=1.0; user-scalable=no");
-		endShortTag();
+		METAviewport("device-width", 1);
 		META("Content-Language", language);
 		META("Content-Type", "text/html; charset=" + encoding);
+		TITLE(title);
+	}
+
+	public void TITLE(String title) {
 		startTag(TITLE);
 		text(title);
 		endTag(TITLE);
@@ -503,16 +528,14 @@ public class HtmlRenderer {
 	}
 
 	public void META(String httpEquiv, String content) {
-		startTag(META, true).set("http-equiv", httpEquiv).set("content", content);
-		endShortTag();
+		startTag(META, true).set("http-equiv", httpEquiv).set("content", content).end();
 	}
 
 	public void METAviewport(String width, Integer initialScale) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("width=").append(width);
 		sb.append(", initial-scale=").append(initialScale);
-		startTag(META, true).set("name", "viewport").set("content", sb.toString());
-		endShortTag();
+		startTag(META, true).set("name", "viewport").set("content", sb.toString()).end();
 	}
 
 	public void METArefresh(int seconds, String url) {
@@ -523,8 +546,7 @@ public class HtmlRenderer {
 	}
 
 	public void LINK(String rel, String type, String title, String href) {
-		startTag(LINK, true).set("rel", rel).set("type", type).set("title", title).setHref(href);
-		endShortTag();
+		startTag(LINK, true).set("rel", rel).set("type", type).set("title", title).setHref(href).end();
 	}
 
 	public void LINK(String rel, String type, String href) {
@@ -626,7 +648,7 @@ public class HtmlRenderer {
 		if (height != null) tag.set("height", height);
 		if (align != null) tag.setAlign(align);
 		if (style != null) tag.setStyle(style);
-		endShortTag();
+		tag.end();
 	}
 
 	// --- DIV ---
@@ -747,11 +769,11 @@ public class HtmlRenderer {
 	private static final String A = "a";
 
 	public Tag startA(String clazz, String href) {
-		return startTag(A).setClass(clazz).setHref(href);
+		return startTag(A, false).setClass(clazz).setHref(href);
 	}
 
 	public Tag startA(String href) {
-		return startTag(A).setHref(href);
+		return startTag(A, false).setHref(href);
 	}
 
 	public void endA() {
@@ -780,8 +802,7 @@ public class HtmlRenderer {
 	private static final String TH = "th";
 
 	public Tag startTABLE() {
-		startTag(TABLE, true).setBorder(0).set("cellpadding", 0).set("cellspacing", 0);
-		return tag;
+		return startTag(TABLE, true).setBorder(0).set("cellpadding", 0).set("cellspacing", 0);
 	}
 
 	public Tag startTABLE(String clazz) {
@@ -789,9 +810,8 @@ public class HtmlRenderer {
 	}
 
 	public Tag startTABLE(String clazz, int border, int cellpadding, int cellspacing) {
-		startTag(TABLE, true).setClass(clazz).setBorder(border).set("cellpadding", cellpadding)
+		return startTag(TABLE, true).setClass(clazz).setBorder(border).set("cellpadding", cellpadding)
 				.set("cellspacing", cellspacing);
-		return tag;
 	}
 
 	public void endTABLE() {
@@ -868,7 +888,7 @@ public class HtmlRenderer {
 		out.print("&nbsp;");
 	}
 
-	private void nl() {
+	public void nl() {
 		out.println();
 	}
 
@@ -876,11 +896,10 @@ public class HtmlRenderer {
 		return startTag(name, true);
 	}
 
-	private int depth;
-
 	private void printPrefix() {
 		// increases html file size
-		// for (int i = 0; i < depth; i++) out.print(" ");
+		for (int i = 0; i < depth; i++)
+			out.print(" ");
 	}
 
 	public Tag startTag(String name, boolean nl) {
@@ -893,7 +912,7 @@ public class HtmlRenderer {
 		out.print('<');
 		out.print(name);
 		depth++;
-		return tag;
+		return new Tag();
 	}
 
 	public void textEm(Object text) {
@@ -967,18 +986,14 @@ public class HtmlRenderer {
 		closeStartingTag();
 		depth--;
 
-		// nl();
-		// printPrefix();
+		if (Utl.equalsAny(name, "html", "body", "head", "ul", "div")) {
+			nl();
+			printPrefix();
+		}
 
 		out.print("</");
 		out.print(name);
 		out.print(">");
-	}
-
-	public void endShortTag() {
-		depth--;
-		out.print(" />");
-		startingTag = null;
 	}
 
 	private void closeStartingTag() {
@@ -1117,6 +1132,14 @@ public class HtmlRenderer {
 			return set("data-role", value);
 		}
 
+		public Tag setDataRel(String value) {
+			return set("data-rel", value);
+		}
+
+		public Tag setDataRelPopup() {
+			return setDataRel("popup");
+		}
+
 		public Tag setDataIcon(String value) {
 			return set("data-icon", value);
 		}
@@ -1132,6 +1155,7 @@ public class HtmlRenderer {
 		}
 
 		public Tag set(String name, String value) {
+			// TODO cache in map
 			if (value == null) return this;
 			out.print(" ");
 			out.print(name);
@@ -1139,6 +1163,12 @@ public class HtmlRenderer {
 			out.print(value);
 			out.print("\"");
 			return this;
+		}
+
+		public void end() {
+			depth--;
+			out.print(" />");
+			startingTag = null;
 		}
 
 	}

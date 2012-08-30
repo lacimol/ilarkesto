@@ -18,7 +18,6 @@ import ilarkesto.core.base.Str;
 import ilarkesto.core.base.Utl;
 import ilarkesto.core.logging.Log;
 
-import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
@@ -271,27 +270,11 @@ public abstract class AViewEditWidget extends AWidget {
 
 		@Override
 		public void onClick(ClickEvent event) {
-			if (isRightTarget(event) && isEditable()) switchToEditMode();
+			if (isEditable()) switchToEditMode();
 			event.stopPropagation();
 		}
 
-		private boolean isRightTarget(ClickEvent event) {
-			String eventTarget = event.getNativeEvent().getEventTarget().toString();
-			// showIfIe(eventTarget);
-			if (!GWT.isProdMode()) return eventTarget.startsWith("<div ");
-			if (Gwt.isMsie()) return eventTarget.equals("[object]");
-			return eventTarget.startsWith("[object HTML");
-		}
-
 	}
-
-	public static native void showIfIe(String text)
-	/*-{
-	    var agent = navigator.userAgent.toLowerCase();
-		if (agent.indexOf('msie')>=0) {
-			alert('ie-text:'+text+':'+agent);
-		}
-	}-*/;
 
 	protected class SubmitEditorFocusListener implements FocusListener {
 

@@ -15,26 +15,31 @@
 package ilarkesto.email;
 
 import ilarkesto.Servers;
+import ilarkesto.auth.LoginData;
+import ilarkesto.auth.LoginDataProvider;
 import ilarkesto.base.Str;
 import ilarkesto.base.Sys;
 import ilarkesto.base.Utl;
 import ilarkesto.base.time.DateAndTime;
 import ilarkesto.core.logging.Log;
 import ilarkesto.io.IO;
+import ilarkesto.swing.LoginPanel;
 
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.Set;
@@ -75,11 +80,17 @@ public class Eml {
 		Log.setDebugEnabled(true);
 		Sys.setFileEncoding(IO.UTF_8);
 
-		Message msg = createTextMessage(createDummySession(), "aaa" + Str.UE + "aaa", "aaa" + Str.UE + "aaa",
-			"wi@koczewski.de", "wi@koczewski.de");
-		OutputStream out = new FileOutputStream("g:/inbox/email-test.msg");
-		writeMessage(msg, out);
-		out.close();
+		Session session = createSmtpSession("mail.servisto.de", null, false,
+			LoginPanel.showDialog(null, "Servisto SMTP", new File("runtimedata/servisto-smtp.properties")));
+		sendSmtpMessage(session,
+			createTextMessage(session, "test 1", "test 1", "daemon@freakpla.net", "wi@koczewski.de"));
+
+		// Message msg = createTextMessage(createDummySession(), "aaa" + Str.UE + "aaa", "aaa" + Str.UE +
+		// "aaa",
+		// "wi@koczewski.de", "wi@koczewski.de");
+		// OutputStream out = new FileOutputStream("g:/inbox/email-test.msg");
+		// writeMessage(msg, out);
+		// out.close();
 
 		// Store store = getStore("imaps", "imap.googlemail.com", "witoslaw.koczewski@googlemail.com", "xxx");
 		// try {
@@ -103,6 +114,7 @@ public class Eml {
 	public static final String HEADER_MESSAGE_CONTENT_TYPE = "Content-Type";
 	public static final String HEADER_REPLY_TO = "Reply-To";
 	public static final String HEADER_IN_REPLY_TO = "In-Reply-To";
+	public static final String HEADER_LIST_UNSUBSCRIBE = "List-Unsubscribe";
 	public static final String HEADER_X_MAILER = "X-Mailer";
 	public static final String HEADER_X_PRIORITY = "X-Priority";
 	public static final String HEADER_X_CONFIRM_READING_TO = "X-Confirm-Reading-To";
@@ -324,7 +336,8 @@ public class Eml {
 				}
 			}
 		} catch (MessagingException ex) {
-			throw new RuntimeException("Copying message " + toString(message) + " from " + source.getName() + " to "
+			String name = source == null ? "<no name>" : source.getName();
+			throw new RuntimeException("Copying message " + toString(message) + " from " + name + " to "
 					+ destination.getName() + " failed.", ex);
 		} finally {
 			if (sourceOpened) closeFolder(source, false);
@@ -368,6 +381,22 @@ public class Eml {
 
 	public static String getFrom(Message msg) {
 		return getHeaderFieldValue(msg, HEADER_FROM);
+	}
+
+	public static String getHeaderListUnsubscribe(Message msg) {
+		return getHeaderFieldValue(msg, HEADER_LIST_UNSUBSCRIBE);
+	}
+
+	public static List<String> getHeaderListUnsubscribeParsed(Message msg) {
+		String s = getHeaderListUnsubscribe(msg);
+		if (Str.isBlank(s)) return Collections.emptyList();
+		String[] hrefs = Str.tokenize(s, ",");
+		List<String> ret = new ArrayList<String>(hrefs.length);
+		for (String href : hrefs) {
+			href = href.trim();
+			if (href.startsWith("<") && href.endsWith(">")) href = href.substring(1, href.length() - 2);
+		}
+		return ret;
 	}
 
 	public static String getFromFormated(Message msg) {
@@ -537,6 +566,11 @@ public class Eml {
 		}
 	}
 
+	public static Session createSmtpSession(String host, Integer port, boolean tls, LoginDataProvider login) {
+		LoginData loginData = login.getLoginData();
+		return createSmtpSession(host, port, tls, loginData.getLogin(), loginData.getPassword());
+	}
+
 	public static Session createSmtpSession(String host, Integer port, boolean tls, String user, String password) {
 		if (Str.isBlank(host)) throw new IllegalArgumentException("host ist blank");
 
@@ -619,7 +653,7 @@ public class Eml {
 			throw new RuntimeException(ex);
 		}
 		if (header == null) return null;
-		return header[0];
+		return Str.decodeQuotedPrintable(header[0]);
 	}
 
 	public static void setHeaderFieldValue(Message msg, String fieldName, String value) {
