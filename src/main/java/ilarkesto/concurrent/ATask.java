@@ -16,6 +16,7 @@ package ilarkesto.concurrent;
 
 import ilarkesto.base.Utl;
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.Tm;
 
 public abstract class ATask {
 
@@ -79,7 +80,7 @@ public abstract class ATask {
 	public final long getRunTime() {
 		if (startTime < 0) return -1;
 		if (isFinished()) return finishTime - startTime;
-		return System.currentTimeMillis() - startTime;
+		return Tm.getCurrentTimeMillis() - startTime;
 	}
 
 	public void reset() {
@@ -102,7 +103,7 @@ public abstract class ATask {
 		this.thread = Thread.currentThread();
 		if (started) throw new RuntimeException("Task already started: " + this);
 		started = true;
-		startTime = System.currentTimeMillis();
+		startTime = Tm.getCurrentTimeMillis();
 		try {
 			perform();
 		} catch (InterruptedException ex) {
@@ -117,7 +118,7 @@ public abstract class ATask {
 			}
 		} finally {
 			finished = true;
-			finishTime = System.currentTimeMillis();
+			finishTime = Tm.getCurrentTimeMillis();
 			synchronized (this) {
 				this.notifyAll();
 			}

@@ -16,8 +16,11 @@ package ilarkesto.core.time;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Date implements Comparable<Date>, Serializable {
 
@@ -63,7 +66,15 @@ public class Date implements Comparable<Date>, Serializable {
 		return new Date(javaDate);
 	}
 
+	protected Date newDate(int year, int month, int day) {
+		return new Date(year, month, day);
+	}
+
 	// ---
+
+	public final int getDaysInMonth() {
+		return Tm.getDaysInMonth(year, month);
+	}
 
 	public final int getWeek() {
 		return Tm.getWeek(toJavaDate());
@@ -77,6 +88,14 @@ public class Date implements Comparable<Date>, Serializable {
 		return getPeriodTo(today());
 	}
 
+	public Date getFirstDateOfMonth() {
+		return newDate(year, month, 1);
+	}
+
+	public Date getLastDateOfMonth() {
+		return newDate(year, month, Tm.getDaysInMonth(year, month));
+	}
+
 	public Weekday getWeekday() {
 		return Weekday.get(Tm.getWeekday(toJavaDate()));
 	}
@@ -85,12 +104,41 @@ public class Date implements Comparable<Date>, Serializable {
 		return newDate(Tm.addDays(toJavaDate(), days));
 	}
 
+	public Date addMonths(int months) {
+		int years = months / 12;
+		months = months - (years * 12);
+		int newMonth = month + months;
+		if (newMonth > 12) {
+			years++;
+			newMonth -= 12;
+		} else if (newMonth <= 0) {
+			years--;
+			newMonth += 12;
+		}
+		int newYear = year + years;
+		int daysInNewMonth = Tm.getDaysInMonth(newYear, newMonth);
+		int newDay = daysInNewMonth < day ? daysInNewMonth : day;
+		return newDate(newYear, newMonth, newDay);
+	}
+
+	public Date addYears(int years) {
+		int newYear = year + years;
+		int daysInNewMonth = Tm.getDaysInMonth(newYear, month);
+		int newDay = daysInNewMonth < day ? daysInNewMonth : day;
+		return newDate(newYear, month, newDay);
+	}
+
 	public Date prevDay() {
 		return addDays(-1);
 	}
 
 	public Date nextDay() {
 		return addDays(1);
+	}
+
+	public Date getMondayOfWeek() {
+		if (getWeekday() == Weekday.MONDAY) return this;
+		return addDays(-1).getMondayOfWeek();
 	}
 
 	public final boolean isBetween(Date begin, Date end, boolean includingBoundaries) {
@@ -203,6 +251,16 @@ public class Date implements Comparable<Date>, Serializable {
 		return other.day == day && other.month == month && other.year == year;
 	}
 
+	public boolean equalsIgnoreYear(Date d) {
+		if (d == null) return false;
+		return d.day == day && d.month == month;
+	}
+
+	public boolean equalsIgnoreDay(Date d) {
+		if (d == null) return false;
+		return d.year == year && d.month == month;
+	}
+
 	@Override
 	public final int compareTo(Date other) {
 		if (other == null) return 1;
@@ -215,17 +273,66 @@ public class Date implements Comparable<Date>, Serializable {
 		return 0;
 	}
 
-	@Override
-	public final String toString() {
+	public String formatDayMonth() {
+		StringBuilder sb = new StringBuilder();
+		formatDay(sb);
+		sb.append(".");
+		formatMonth(sb);
+		sb.append(".");
+		return sb.toString();
+	}
+
+	public String formatDayLongMonthYear() {
+		StringBuilder sb = new StringBuilder();
+		formatDay(sb);
+		sb.append(". ");
+		sb.append(formatLongMonth());
+		sb.append(' ');
+		sb.append(year);
+		return sb.toString();
+	}
+
+	public String formatLongMonthYear() {
+		return formatLongMonth() + " " + year;
+	}
+
+	public String formatLongMonth() {
+		return Month.get(month).toLocalString();
+	}
+
+	public String formatDayMonthYear() {
+		StringBuilder sb = new StringBuilder();
+		formatDay(sb);
+		sb.append('.');
+		formatMonth(sb);
+		sb.append('.');
+		sb.append(year);
+		return sb.toString();
+	}
+
+	public String formatYearMonthDay() {
 		StringBuilder sb = new StringBuilder();
 		sb.append(year);
-		sb.append("-");
-		if (month < 10) sb.append('0');
-		sb.append(month);
-		sb.append("-");
+		sb.append('-');
+		formatMonth(sb);
+		sb.append('-');
+		formatDay(sb);
+		return sb.toString();
+	}
+
+	@Override
+	public final String toString() {
+		return formatYearMonthDay();
+	}
+
+	public void formatDay(StringBuilder sb) {
 		if (day < 10) sb.append('0');
 		sb.append(day);
-		return sb.toString();
+	}
+
+	public void formatMonth(StringBuilder sb) {
+		if (month < 10) sb.append('0');
+		sb.append(month);
 	}
 
 	// --- static ---
@@ -272,6 +379,34 @@ public class Date implements Comparable<Date>, Serializable {
 		}
 
 		return dates;
+	}
+
+	public static Map<Integer, List<Date>> groupByYear(Collection<Date> dates) {
+		Map<Integer, List<Date>> ret = new HashMap<Integer, List<Date>>();
+		for (Date date : dates) {
+			Integer year = date.getYear();
+			List<Date> list = ret.get(year);
+			if (list == null) {
+				list = new ArrayList<Date>();
+				ret.put(year, list);
+			}
+			list.add(date);
+		}
+		return ret;
+	}
+
+	public static Map<Integer, List<Date>> groupByMonth(Collection<Date> dates) {
+		Map<Integer, List<Date>> ret = new HashMap<Integer, List<Date>>();
+		for (Date date : dates) {
+			Integer month = date.getMonth();
+			List<Date> list = ret.get(month);
+			if (list == null) {
+				list = new ArrayList<Date>();
+				ret.put(month, list);
+			}
+			list.add(date);
+		}
+		return ret;
 	}
 
 	public static Comparator<Date> COMPARATOR = new Comparator<Date>() {

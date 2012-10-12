@@ -3,9 +3,9 @@ package ilarkesto.integration.facebook;
 import ilarkesto.auth.LoginData;
 import ilarkesto.auth.LoginDataProvider;
 import ilarkesto.base.Str;
-import ilarkesto.base.time.DateAndTime;
 import ilarkesto.core.logging.Log;
 import ilarkesto.core.time.Date;
+import ilarkesto.core.time.DateAndTime;
 import ilarkesto.integration.oauth.OAuth;
 import ilarkesto.io.IO;
 import ilarkesto.json.JsonObject;
@@ -45,17 +45,23 @@ public class Facebook {
 		String accessToken = properties.getProperty("facebook.oauth.accesstoken");
 
 		// System.out.println(facebook.loadMeLikes(accessToken, null));
-		System.out.println(facebook.loadMe(accessToken));
+		System.out.println(facebook.loadPerson(accessToken, "koczewski"));
 	}
 
 	public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZZZZZ");
 
 	public static final String PERMISSION_READ_STREAM = "read_stream";
+	public static final String PERMISSION_OFFLINE_ACCESS = "offline_access";
 	public static final String PERMISSION_USER_ACTIVITIES = "user_activities";
 	public static final String PERMISSION_USER_LIKES = "user_likes";
 	public static final String PERMISSION_USER_EVENTS = "user_events";
 	public static final String PERMISSION_USER_PHOTOS = "user_photos";
-	public static final String PERMISSION_OFFLINE_ACCESS = "offline_access";
+	public static final String PERMISSION_USER_STATUS = "user_status";
+	public static final String PERMISSION_FRIENDS_ACTIVITIES = "friends_activities";
+	public static final String PERMISSION_FRIENDS_LIKES = "friends_likes";
+	public static final String PERMISSION_FRIENDS_EVENTS = "friends_events";
+	public static final String PERMISSION_FRIENDS_PHOTOS = "friends_photos";
+	public static final String PERMISSION_FRIENDS_STATUS = "friends_status";
 
 	private static Log log = Log.get(Facebook.class);
 
@@ -66,6 +72,30 @@ public class Facebook {
 	public Facebook(LoginDataProvider oauthApiKey, String callbackUri) {
 		this.oauthApiKey = oauthApiKey;
 		this.callbackUri = callbackUri;
+	}
+
+	public static String getProfileUrl(String id) {
+		return "https://www.facebook.com/" + id;
+	}
+
+	public static String getProfilePictureUrl(String id) {
+		return getGraphUrl(id + "/picture");
+	}
+
+	public Person loadPerson(String oauthAccessToken, String id) {
+		JsonObject json = loadJson(oauthAccessToken, id);
+		if (json == null) return null;
+		return new Person(json);
+	}
+
+	public List<Reference> loadMeFriends(String oauthAccessToken) {
+		JsonObject json = loadJson(oauthAccessToken, "me/friends");
+		List<JsonObject> data = json.getArrayOfObjects("data");
+		List<Reference> friends = new ArrayList<Reference>(data.size());
+		for (JsonObject jReference : data) {
+			friends.add(new Reference(jReference));
+		}
+		return friends;
 	}
 
 	public List<Like> loadMeLikes(String oauthAccessToken, Date deadline) {
@@ -102,10 +132,14 @@ public class Facebook {
 	}
 
 	public JsonObject loadJson(String oauthAccessToken, String id) {
-		JsonObject json = OAuth.loadUrlAsJson(getOauthService(), new LoginData(oauthAccessToken, null),
-			"https://graph.facebook.com/" + id);
+		JsonObject json = OAuth
+				.loadUrlAsJson(getOauthService(), new LoginData(oauthAccessToken, null), getGraphUrl(id));
 		log.info("Loaded", id, "->", json.toFormatedString());
 		return json;
+	}
+
+	private static String getGraphUrl(String id) {
+		return "https://graph.facebook.com/" + id;
 	}
 
 	public String createAccessToken(String code) {

@@ -68,6 +68,18 @@ public class DateAndTime implements Comparable<DateAndTime>, Serializable {
 
 	// ---
 
+	public DateAndTime addDays(int days) {
+		return new DateAndTime(Tm.addDays(toJavaDate(), days));
+	}
+
+	public DateAndTime addHours(int hours) {
+		return new DateAndTime(toMillis() + (hours * Tm.HOUR));
+	}
+
+	public DateAndTime addMinutes(int minutes) {
+		return new DateAndTime(toMillis() + (minutes * Tm.MINUTE));
+	}
+
 	public TimePeriod getPeriodTo(DateAndTime other) {
 		return new TimePeriod(other.toMillis() - toMillis());
 	}
@@ -88,12 +100,24 @@ public class DateAndTime implements Comparable<DateAndTime>, Serializable {
 		return isAfter(now());
 	}
 
+	public final boolean isBefore(Date other) {
+		return getDate().isBefore(other);
+	}
+
 	public final boolean isBefore(DateAndTime other) {
 		return compareTo(other) < 0;
 	}
 
+	public boolean isBeforeOrSame(DateAndTime other) {
+		return compareTo(other) <= 0;
+	}
+
 	public final boolean isAfter(DateAndTime other) {
 		return compareTo(other) > 0;
+	}
+
+	public boolean isAfterOrSame(DateAndTime other) {
+		return compareTo(other) >= 0;
 	}
 
 	public final Date getDate() {
@@ -112,13 +136,21 @@ public class DateAndTime implements Comparable<DateAndTime>, Serializable {
 		return date.toMillis() + time.toMillis();
 	}
 
+	public String formatLog() {
+		return date.formatYearMonthDay() + "_" + time.formatLog();
+	}
+
+	public String formatDayMonthYearHourMinute() {
+		return date.formatDayMonthYear() + " " + time.formatHourMinute();
+	}
+
+	public String formatYearMonthDayHourMinute() {
+		return date.formatYearMonthDay() + " " + time.formatHourMinute();
+	}
+
 	@Override
 	public final String toString() {
-		StringBuilder sb = new StringBuilder();
-		sb.append(date.toString());
-		sb.append(" ");
-		sb.append(time.toString());
-		return sb.toString();
+		return date + " " + time;
 	}
 
 	@Override

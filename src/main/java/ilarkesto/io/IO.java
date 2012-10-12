@@ -15,6 +15,7 @@
 package ilarkesto.io;
 
 import ilarkesto.base.Sys;
+import ilarkesto.core.time.Tm;
 import ilarkesto.io.zip.Deflater;
 import ilarkesto.io.zip.ZipEntry;
 import ilarkesto.io.zip.ZipFile;
@@ -355,7 +356,7 @@ public abstract class IO {
 		createDirectory(new File(path));
 	}
 
-	public static void createDirectory(File dir) {
+	public static synchronized void createDirectory(File dir) {
 		if (dir.exists()) {
 			if (dir.isDirectory()) return;
 			throw new RuntimeException("A file already exists: " + dir.getPath());
@@ -860,12 +861,12 @@ public abstract class IO {
 			}
 			zipout.close();
 		} catch (Exception ex) {
-			throw new RuntimeException(ex);
+			throw new RuntimeException("Zipping files failed.", ex);
 		}
 	}
 
 	public static void addZipEntry(ZipOutputStream zipout, String zippath, File f, FileFilter filter,
-			ZipObserver observer) throws Exception {
+			ZipObserver observer) {
 		if (filter != null && !filter.accept(f)) return;
 		if (observer != null) {
 			if (observer.isAbortRequested()) return;
@@ -885,7 +886,7 @@ public abstract class IO {
 				in.close();
 				zipout.closeEntry();
 			} catch (Exception ex) {
-				if (observer == null) { throw ex; }
+				if (observer == null) { throw new RuntimeException("Zipping " + f + " failed.", ex); }
 				observer.onFileError(f, ex);
 			}
 		}
@@ -944,17 +945,25 @@ public abstract class IO {
 		} catch (Throwable ex) {}
 	}
 
-	@Deprecated
-	public static void writeImage(Image image, String type, String file) throws IOException {
-		File f = new File(file);
-		createDirectory(f.getParentFile());
-		ImageIO.write(toBufferedImage(image), type, f);
+	public static void writeImage(Image image, String type, String file) {
+		writeImage(image, type, new File(file));
+	}
+
+	public static void writeImage(Image image, String type, File file) {
+		createDirectory(file.getParentFile());
+		try {
+			ImageIO.write(toBufferedImage(image), type, file);
+		} catch (IOException ex) {
+			throw new RuntimeException("Writing image to file failed: " + file, ex);
+		}
 	}
 
 	public static void writeImage(Image image, int width, int height, String type, String file) throws IOException {
 		File f = new File(file);
 		createDirectory(f.getParentFile());
-		ImageIO.write(toBufferedImage(image, width, height), type, f);
+		BufferedImage bufferedImage = toBufferedImage(image, width, height);
+		ImageIO.write(bufferedImage, type, f);
+		System.out.println("done");
 	}
 
 	public static BufferedImage toBufferedImage(Image img) {
@@ -962,7 +971,7 @@ public abstract class IO {
 		return toBufferedImage(img, img.getWidth(null), img.getHeight(null));
 	}
 
-	public static BufferedImage toBufferedImage(Image img, int width, int height) {
+	public static synchronized BufferedImage toBufferedImage(Image img, int width, int height) {
 		if (img instanceof BufferedImage) return (BufferedImage) img;
 		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 		Graphics2D g = image.createGraphics();
@@ -1105,7 +1114,7 @@ public abstract class IO {
 
 	public static void copyDataToFile(InputStream is, File dst, CopyObserver observer) {
 		createDirectory(dst.getParentFile());
-		File tmp = new File(dst.getPath() + "~" + System.currentTimeMillis());
+		File tmp = new File(dst.getPath() + "~" + Tm.getCurrentTimeMillis());
 
 		BufferedInputStream in;
 		try {

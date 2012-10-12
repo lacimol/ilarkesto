@@ -16,6 +16,7 @@ package ilarkesto.base;
 
 import java.awt.Color;
 import java.io.File;
+import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -35,6 +36,15 @@ public class Utl extends ilarkesto.core.base.Utl {
 	public static void main(String[] args) {
 		for (int i = 0; i < 100; i++) {
 			System.out.println(randomInt(3, 5));
+		}
+	}
+
+	public static String toUrl(File file) {
+		if (file == null) return null;
+		try {
+			return file.toURI().toURL().toString();
+		} catch (MalformedURLException ex) {
+			throw new RuntimeException(ex);
 		}
 	}
 
@@ -97,7 +107,7 @@ public class Utl extends ilarkesto.core.base.Utl {
 		return new Color(parseHex(color.substring(1)));
 	}
 
-	private static final Random random = new Random(System.currentTimeMillis());
+	private static final Random random = new Random(Tm.getCurrentTimeMillis());
 
 	public static boolean equals(Set<?> objects) {
 		Object first = null;

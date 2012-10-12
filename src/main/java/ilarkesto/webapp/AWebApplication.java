@@ -16,11 +16,12 @@ package ilarkesto.webapp;
 
 import ilarkesto.base.Str;
 import ilarkesto.base.Sys;
-import ilarkesto.base.Url;
 import ilarkesto.core.logging.Log;
 import ilarkesto.di.app.AApplication;
 import ilarkesto.gwt.server.AGwtConversation;
 import ilarkesto.logging.DefaultLogRecordHandler;
+import ilarkesto.webapp.jsonapi.ReflectionJsonApiFactory;
+import ilarkesto.webapp.jsonapi.JsonApiFactory;
 
 import java.io.File;
 import java.util.HashSet;
@@ -39,11 +40,11 @@ public abstract class AWebApplication extends AApplication {
 
 	protected abstract AWebSession createWebSession(HttpServletRequest httpRequest);
 
-	public abstract Url getHomeUrl();
-
 	private Set<AWebSession> webSessions = new HashSet<AWebSession>();
 
 	private String applicationName;
+
+	private JsonApiFactory restApiFactory;
 
 	@Override
 	protected void onStart() {
@@ -77,7 +78,7 @@ public abstract class AWebApplication extends AApplication {
 
 	private static final String WEB_SESSION_SESSION_ATTRIBUTE = "_webSession";
 
-	public final AWebSession getWebSession(HttpServletRequest httpRequest) {
+	public AWebSession getWebSession(HttpServletRequest httpRequest) {
 		if (isShuttingDown()) return null;
 		HttpSession httpSession = httpRequest.getSession();
 		AWebSession webSession = (AWebSession) httpSession.getAttribute(WEB_SESSION_SESSION_ATTRIBUTE);
@@ -140,6 +141,15 @@ public abstract class AWebApplication extends AApplication {
 			ret.addAll(session.getGwtConversations());
 		}
 		return ret;
+	}
+
+	public JsonApiFactory getRestApiFactory() {
+		if (restApiFactory == null) restApiFactory = createRestApiFactory();
+		return restApiFactory;
+	}
+
+	protected ReflectionJsonApiFactory createRestApiFactory() {
+		return new ReflectionJsonApiFactory(this);
 	}
 
 	public static AWebApplication get() {

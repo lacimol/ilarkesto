@@ -642,7 +642,7 @@ public class HtmlRenderer {
 
 	public void IMG(String src, String alternatieText, String id, String align, Integer width, Integer height,
 			String style) {
-		Tag tag = startTag(IMG).setSrc(src).setAlt(alternatieText).setTitle(alternatieText).setBorder(0);
+		Tag tag = startTag(IMG).setSrc(src).setAlt(alternatieText).setBorder(0);
 		if (id != null) tag.setId(id);
 		if (width != null) tag.setWidth(width);
 		if (height != null) tag.set("height", height);
@@ -654,12 +654,6 @@ public class HtmlRenderer {
 	// --- DIV ---
 
 	private static final String DIV = "div";
-
-	public void DIVclean() {
-		startDIV("clean");
-		IMG("dot.png", "", null, null, null, null);
-		endDIV();
-	}
 
 	public void DIVclear() {
 		startDIV().setStyle("clear: both;");

@@ -14,7 +14,6 @@
  */
 package ilarkesto.json;
 
-import ilarkesto.core.base.Str;
 import ilarkesto.json.Json.JsonWrapper;
 
 import java.lang.reflect.Constructor;
@@ -31,6 +30,10 @@ public abstract class AJsonWrapper implements JsonWrapper {
 		this.json = json;
 	}
 
+	public AJsonWrapper() {
+		this(new JsonObject());
+	}
+
 	protected void putArray(String name, Iterable<? extends AJsonWrapper> wrappers) {
 		json.put(name, getJsonObjects(wrappers));
 	}
@@ -44,7 +47,7 @@ public abstract class AJsonWrapper implements JsonWrapper {
 	}
 
 	protected void putOrRemove(String name, String value) {
-		if (Str.isBlank(value)) {
+		if (value == null) {
 			json.remove(name);
 		} else {
 			json.put(name, value);

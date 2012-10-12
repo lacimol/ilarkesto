@@ -16,10 +16,12 @@ package ilarkesto.webapp;
 
 import ilarkesto.base.Net;
 import ilarkesto.base.Str;
-import ilarkesto.base.time.DateAndTime;
+import ilarkesto.base.Tm;
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.DateAndTime;
 import ilarkesto.io.IO;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -35,13 +37,24 @@ import javax.servlet.http.HttpServletResponse;
 
 public abstract class Servlet {
 
-	private static final Log LOG = Log.get(Servlet.class);
+	private static final Log log = Log.get(Servlet.class);
 
 	public static final String ENCODING = IO.UTF_8;
 
 	public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy, HH:mm:";
 
 	private Servlet() {}
+
+	public static String readContentToString(HttpServletRequest request) {
+		BufferedReader in;
+		try {
+			in = request.getReader();
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+		if (in == null) return null;
+		return IO.readToString(in);
+	}
 
 	public static String getBaseUrl(HttpServletRequest request) {
 		String context = request.getContextPath();
@@ -83,9 +96,8 @@ public abstract class Servlet {
 	}
 
 	public static void setLastModified(HttpServletResponse httpResponse, DateAndTime lastModified) {
-		lastModified = lastModified.toUtc();
-		httpResponse.setHeader("Last-Modified", lastModified.toString(new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss"))
-				+ " GMT");
+		httpResponse.setHeader("Last-Modified",
+			new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss").format(Tm.toUtc(lastModified.toJavaDate())) + " GMT");
 	}
 
 	public static void setEtag(HttpServletResponse httpResponse, String eTag) {
@@ -107,11 +119,40 @@ public abstract class Servlet {
 		httpResponse.setDateHeader("Expires", 0);
 	}
 
-	public static void serveFile(File file, HttpServletResponse httpResponse, boolean setFilename) throws IOException {
+	public static void serveFile(File file, HttpServletRequest httpRequest, HttpServletResponse httpResponse,
+			boolean setFilename, boolean enableCaching) {
+		if (!file.exists()) {
+			try {
+				httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND);
+			} catch (IOException ex) {
+				throw new RuntimeException("Serving file failed: " + file, ex);
+			}
+			return;
+		}
+
+		if (enableCaching) {
+			String eTag = createEtag(file);
+			String requestEtag = getEtag(httpRequest);
+			if (eTag.equals(requestEtag)) {
+				log.debug("ETag valid. Returning: 304 Not Modified");
+				try {
+					httpResponse.sendError(HttpServletResponse.SC_NOT_MODIFIED);
+				} catch (IOException ex) {
+					throw new RuntimeException("Serving file failed: " + file, ex);
+				}
+				return;
+			}
+			setEtag(httpResponse, eTag);
+		}
+
 		httpResponse.setContentType("application/octet-stream");
 		httpResponse.setContentLength((int) file.length());
 		if (setFilename) Servlet.setFilename(file.getName(), httpResponse);
-		IO.copyFile(file, httpResponse.getOutputStream());
+		try {
+			IO.copyFile(file, httpResponse.getOutputStream());
+		} catch (IOException ex) {
+			throw new RuntimeException("Serving file failed: " + file, ex);
+		}
 	}
 
 	public static void setFilename(String fileName, HttpServletResponse httpResponse) {
@@ -124,12 +165,13 @@ public abstract class Servlet {
 
 	public static final String getContextPath(ServletContext servletContext) {
 		String realPath = servletContext.getRealPath("dummy");
-		LOG.info("servletContextName:", servletContext.getServletContextName());
-		LOG.info("!!! dummy real path:", realPath);
+		log.info("servletContextName:", servletContext.getServletContextName());
+		log.info("!!! dummy real path:", realPath);
 		File file = new File(realPath);
 		String path = file.getParentFile().getName();
 
 		// TODO String path = servletContext.getContextPaht() when servlet-2.5
+		// servletContext.getContextPath()
 
 		if (path == null) return null;
 		path = path.trim();

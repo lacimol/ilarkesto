@@ -1,13 +1,13 @@
 /*
  * Copyright 2011 Witoslaw Koczewsi <wi@koczewski.de>, Artjom Kochtchi
  * 
- * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
- * License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
- * any later version.
+ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+ * General Public License as published by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  * 
  * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
- * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
- * for more details.
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+ * License for more details.
  * 
  * You should have received a copy of the GNU General Public License along with this program. If not, see
  * <http://www.gnu.org/licenses/>.
@@ -16,10 +16,11 @@ package ilarkesto.tools.getphotos;
 
 import ilarkesto.base.Env;
 import ilarkesto.base.Str;
-import ilarkesto.base.time.Date;
-import ilarkesto.base.time.DateAndTime;
 import ilarkesto.concurrent.ACollectionTask;
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.Date;
+import ilarkesto.core.time.DateAndTime;
+import ilarkesto.core.time.Tm;
 import ilarkesto.io.IO;
 
 import java.io.File;
@@ -59,7 +60,7 @@ public class CopyTask extends ACollectionTask<File> {
 			return null;
 		}
 
-		String dirName = DateAndTime.now().toString(DateAndTime.FORMAT_LOG);
+		String dirName = DateAndTime.now().formatLog();
 		destinationDir = new File(GetphotosSwingApplication.get().getDestinationDir() + "/" + dirName);
 
 		copyPanel.setPhotoCount(photos.size());
@@ -72,7 +73,7 @@ public class CopyTask extends ACollectionTask<File> {
 		copyPanel.setStatus("Kopiere " + file.getName(), getIndex(), lastCopiedPhoto);
 		File destinationFile = new File(destinationDir.getPath() + "/" + file.getName());
 		if (destinationFile.exists()) {
-			destinationFile = new File(destinationDir.getPath() + "/" + System.currentTimeMillis() + "_"
+			destinationFile = new File(destinationDir.getPath() + "/" + Tm.getCurrentTimeMillis() + "_"
 					+ file.getName());
 		}
 		lastCopiedPhoto = IO.readToByteArray(file);
@@ -93,7 +94,7 @@ public class CopyTask extends ACollectionTask<File> {
 					"<html>Fotos kopiert. Bitte Bezeichnung für das Album eingeben.<br><br><i style='font-weight: normal;'>Z.B. Ort, wo die Fotos gemacht wurden</i><br><br>",
 					"Wie soll das Album heissen?", JOptionPane.QUESTION_MESSAGE);
 		name = Str.toFileCompatibleString(name).replace(' ', '-');
-		name = date.toString(Date.FORMAT_YEAR_MONTH_DAY) + "_" + name;
+		name = date.formatYearMonthDay() + "_" + name;
 
 		File newDestinationDir = new File(destinationDir.getParent() + "/" + name);
 		if (destinationDir.renameTo(newDestinationDir)) {

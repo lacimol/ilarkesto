@@ -15,6 +15,7 @@
 package ilarkesto.gwt.client;
 
 import ilarkesto.core.base.Str;
+import ilarkesto.core.time.Tm;
 
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.event.dom.client.KeyDownHandler;
@@ -196,7 +197,7 @@ public class CodemirrorEditorWidget extends AWidget {
 
 		public MyTextArea() {
 			setWidth("100%");
-			getElement().setId("CodeMirror" + System.currentTimeMillis());
+			getElement().setId("CodeMirror" + Tm.getCurrentTimeMillis());
 			// setVisible(false);
 		}
 

@@ -18,11 +18,11 @@ import ilarkesto.base.Str;
 import ilarkesto.base.Sys;
 import ilarkesto.base.Tm;
 import ilarkesto.base.Utl;
-import ilarkesto.base.time.DateAndTime;
-import ilarkesto.base.time.Time;
 import ilarkesto.concurrent.ATask;
 import ilarkesto.concurrent.TaskManager;
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.DateAndTime;
+import ilarkesto.core.time.Time;
 import ilarkesto.core.time.TimePeriod;
 import ilarkesto.di.Context;
 import ilarkesto.integration.xstream.XStreamSerializer;
@@ -53,6 +53,7 @@ public abstract class AApplication {
 	private static Log log = Log.get(AApplication.class);
 
 	private ExclusiveFileLock exclusiveFileLock;
+	private boolean startupFailed;
 	private boolean shuttingDown;
 	private boolean shutdown;
 
@@ -107,20 +108,46 @@ public abstract class AApplication {
 
 			try {
 				getApplicationConfig();
+			} catch (Throwable ex) {
+				startupFailed = true;
+				throw new RuntimeException("Application startup failed. Loading configuration failed.", ex);
+			}
+			try {
 				backupApplicationDataDir();
 				deleteOldApplicationDataDirBackups();
+			} catch (Throwable ex) {
+				log.error("Backing up application data directory failed.", ex);
+			}
+			try {
 				ensureIntegrity();
+			} catch (Throwable ex) {
+				startupFailed = true;
+				shutdown(false);
+				throw new RuntimeException("Application startup failed. Data integrity check or repair failed.", ex);
+			}
+			try {
 				onStart();
 			} catch (Throwable ex) {
-				APPLICATION_LOCK = null;
+				startupFailed = true;
+				shutdown(false);
 				throw new RuntimeException("Application startup failed.", ex);
 			}
 
-			scheduleTasks(getTaskManager());
+			try {
+				scheduleTasks(getTaskManager());
+			} catch (Throwable ex) {
+				startupFailed = true;
+				shutdown(true);
+				throw new RuntimeException("Application startup failed.", ex);
+			}
 		}
 	}
 
 	public final void shutdown() {
+		shutdown(true);
+	}
+
+	private final void shutdown(final boolean runOnShutdown) {
 		Thread thread = new Thread(new Runnable() {
 
 			@Override
@@ -128,7 +155,8 @@ public abstract class AApplication {
 				synchronized (getApplicationLock()) {
 					if (instance == null) throw new RuntimeException("Application not started yet.");
 					log.info("Shutdown initiated:", getApplicationName());
-					onShutdown();
+
+					if (runOnShutdown) onShutdown();
 
 					getTaskManager().shutdown(10000);
 					Set<ATask> tasks = getTaskManager().getRunningTasks();
@@ -153,53 +181,49 @@ public abstract class AApplication {
 	}
 
 	public void backupApplicationDataDir() {
-		try {
-			final File dir = new File(getApplicationDataDir());
-			File backupFile = new File(dir.getPath() + "/backups/" + getApplicationName() + "-data_"
-					+ DateAndTime.now().toString(DateAndTime.FORMAT_LOG) + ".zip");
-			log.info("Backing up application data dir:", dir.getAbsolutePath(), "into", backupFile);
-			long starttime = System.currentTimeMillis();
-			Object lock = entityStore == null ? this : entityStore;
-			synchronized (lock) {
-				IO.zip(backupFile, new File[] { dir }, new FileFilter() {
+		final File dataDir = new File(getApplicationDataDir());
+		File backupFile = new File(dataDir.getPath() + "/backups/" + getApplicationName() + "-data_"
+				+ DateAndTime.now().formatLog() + ".zip");
+		log.info("Backing up application data dir:", dataDir.getAbsolutePath(), "into", backupFile);
+		long starttime = Tm.getCurrentTimeMillis();
+		Object lock = entityStore == null ? this : entityStore;
+		synchronized (lock) {
+			IO.zip(backupFile, new File[] { dataDir }, new FileFilter() {
 
-					@Override
-					public boolean accept(File file) {
-						if (file.getParentFile().equals(dir)) {
-							// base dir
-							String name = file.getName();
-							if (name.equals("backups")) return false;
-							if (name.equals("entities-rescue")) return false;
-							if (name.equals("tmp")) return false;
-							if (name.startsWith("gwt-")) return false;
-							if (file.isDirectory()) log.info("    Zipping", file.getPath());
-						}
-						return true;
+				@Override
+				public boolean accept(File file) {
+					File dir = file.getParentFile();
+					if (dir.equals(dataDir)) {
+						// base dir
+						String name = file.getName();
+						if (name.equals(".lock")) return false;
+						if (name.equals("backups")) return false;
+						if (name.equals("entities-rescue")) return false;
+						if (name.equals("tmp")) return false;
+						if (name.startsWith("gwt-")) return false;
+						if (file.isDirectory()) log.info("    Zipping", file.getPath());
 					}
-				});
-			}
-			long runtime = System.currentTimeMillis() - starttime;
-			log.info("  Backup completed in", new TimePeriod(runtime).toShortestString());
-		} catch (Exception e) {
-			log.info("  Backup error: ", e);
+					return true;
+				}
+			});
 		}
+		long runtime = Tm.getCurrentTimeMillis() - starttime;
+		log.info("  Backup completed in", new TimePeriod(runtime).toShortestString());
 	}
 
 	private void deleteOldApplicationDataDirBackups() {
-		try {
-			File backupDir = new File(getApplicationDataDir() + "/backups");
-			File[] files = backupDir.listFiles();
-			if (files == null || files.length == 0) return;
-			log.info("Deleting old backup files from", backupDir);
-			final long deadline = System.currentTimeMillis() - Tm.DAY * 7;
-			for (File file : files) {
-				if (!file.getName().startsWith(getApplicationName())) continue;
-				if (file.lastModified() >= deadline && !file.getName().endsWith(".zip~")) continue;
-				log.debug("    Deleting", file);
-				IO.delete(file);
-			}
-		} catch (Exception e) {
-			log.error("Delete old backup error: ", e);
+		File backupDir = new File(getApplicationDataDir() + "/backups");
+		File[] files = backupDir.listFiles();
+		if (files == null || files.length == 0) return;
+
+		log.info("Deleting old backup files from", backupDir);
+		final long deadline = Tm.getCurrentTimeMillis() - Tm.DAY * 7;
+
+		for (File file : files) {
+			if (!file.getName().startsWith(getApplicationName())) continue;
+			if (file.lastModified() >= deadline && !file.getName().endsWith(".zip~")) continue;
+			log.debug("    Deleting", file);
+			IO.delete(file);
 		}
 	}
 
@@ -258,7 +282,13 @@ public abstract class AApplication {
 	private String applicationDataDir;
 
 	public String getApplicationDataDir() {
-		if (applicationDataDir == null) applicationDataDir = Sys.getUsersHomePath() + "/." + getApplicationName();
+		if (applicationDataDir == null) {
+			if (isDevelopmentMode()) {
+				applicationDataDir = new File("runtimedata").getAbsolutePath();
+			} else {
+				applicationDataDir = Sys.getUsersHomePath() + "/." + getApplicationName();
+			}
+		}
 		return applicationDataDir;
 	}
 
@@ -317,6 +347,10 @@ public abstract class AApplication {
 
 	public final boolean isProductionMode() {
 		return !isDevelopmentMode();
+	}
+
+	public boolean isStartupFailed() {
+		return startupFailed;
 	}
 
 	public boolean isShuttingDown() {

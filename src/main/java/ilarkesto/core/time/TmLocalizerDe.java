@@ -24,6 +24,58 @@ public class TmLocalizerDe extends TmLocalizer {
 	}
 
 	@Override
+	public String shorted(Weekday day) {
+		switch (day) {
+			case MONDAY:
+				return "Mo";
+			case TUESDAY:
+				return "Di";
+			case WEDNESDAY:
+				return "Mi";
+			case THURSDAY:
+				return "Do";
+			case FRIDAY:
+				return "Fr";
+			case SATURDAY:
+				return "Sa";
+			case SUNDAY:
+				return "So";
+		}
+		throw new IllegalStateException(day.name());
+	}
+
+	@Override
+	public String full(Month month) {
+		switch (month) {
+			case JANUARY:
+				return "Januar";
+			case FEBRUARY:
+				return "Februar";
+			case MARCH:
+				return "März";
+			case APRIL:
+				return "April";
+			case MAY:
+				return "Mai";
+			case JUNE:
+				return "Juni";
+			case JULY:
+				return "Juli";
+			case AUGUST:
+				return "August";
+			case SEPTEMBER:
+				return "September";
+			case OCTOBER:
+				return "Oktober";
+			case NOVEMBER:
+				return "November";
+			case DECEMBER:
+				return "Dezember";
+		}
+		throw new IllegalArgumentException(month.name());
+	}
+
+	@Override
 	public String years(long count) {
 		return "Jahr.";
 	}

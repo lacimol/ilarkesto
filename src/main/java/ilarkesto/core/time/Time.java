@@ -59,6 +59,10 @@ public class Time implements Comparable<Time>, Serializable {
 		this(Tm.getHour(javaDate), Tm.getMinute(javaDate), Tm.getSecond(javaDate));
 	}
 
+	public Time(long millis) {
+		this(new java.util.Date(millis));
+	}
+
 	public Time() {
 		this(Tm.getNowAsDate());
 	}
@@ -131,26 +135,62 @@ public class Time implements Comparable<Time>, Serializable {
 		return toString(false);
 	}
 
-	private final String toString(boolean includeSeconds) {
+	public String formatLog() {
 		StringBuilder sb = new StringBuilder();
-		if (hour < 10) sb.append("0");
-		sb.append(hour);
+		formatHour(sb);
+		sb.append("-");
+		formatMinute(sb);
+		sb.append("-");
+		formatSecond(sb);
+		return sb.toString();
+	}
+
+	public String formatHourMinute() {
+		StringBuilder sb = new StringBuilder();
+		formatHour(sb);
 		sb.append(":");
+		formatMinute(sb);
+		return sb.toString();
+	}
+
+	public String formatHourMinuteSecond() {
+		return formatHourMinuteSecond(true);
+	}
+
+	public String formatHourMinuteSecond(boolean skipSecondIfZero) {
+		StringBuilder sb = new StringBuilder();
+		formatHour(sb);
+		sb.append(":");
+		formatMinute(sb);
+		if (skipSecondIfZero && second == 0) return sb.toString();
+		sb.append(":");
+		formatSecond(sb);
+		return sb.toString();
+	}
+
+	@Deprecated
+	public final String toString(boolean includeSeconds) {
+		return includeSeconds ? formatHourMinuteSecond() : formatHourMinute();
+	}
+
+	public void formatSecond(StringBuilder sb) {
+		if (second < 10) sb.append("0");
+		sb.append(second);
+	}
+
+	public void formatMinute(StringBuilder sb) {
 		if (minute < 10) sb.append("0");
 		sb.append(minute);
-		if (includeSeconds) {
-			if (second > 0) {
-				sb.append(":");
-				if (second < 10) sb.append("0");
-				sb.append(second);
-			}
-		}
-		return sb.toString();
+	}
+
+	public void formatHour(StringBuilder sb) {
+		if (hour < 10) sb.append("0");
+		sb.append(hour);
 	}
 
 	@Override
 	public final String toString() {
-		return toString(true);
+		return formatHourMinuteSecond(true);
 	}
 
 	@Override
@@ -168,6 +208,19 @@ public class Time implements Comparable<Time>, Serializable {
 
 	public static Time now() {
 		return new Time();
+	}
+
+	public static String toStringBeginEnd(Time begin, Time end) {
+		if (begin == null && end == null) return null;
+		StringBuilder sb = new StringBuilder();
+		if (begin != null) {
+			sb.append(begin);
+		}
+		if (end != null) {
+			sb.append("-");
+			sb.append(end);
+		}
+		return sb.toString();
 	}
 
 }

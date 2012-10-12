@@ -19,6 +19,7 @@ import ilarkesto.core.menu.MenuItem;
 import ilarkesto.core.menu.StaticMenu;
 import ilarkesto.core.menu.StaticMenuItem;
 import ilarkesto.core.menu.Submenu;
+import ilarkesto.core.time.Tm;
 import ilarkesto.gwt.client.animation.AnimatingFlowPanel;
 
 import com.google.gwt.event.dom.client.ClickEvent;
@@ -57,7 +58,7 @@ public class NavigatorWidget<K extends Object> extends AWidget {
 			panel.add(createItemWidget(item));
 		}
 		super.onUpdate();
-		lastUpdateTime = System.currentTimeMillis();
+		lastUpdateTime = Tm.getCurrentTimeMillis();
 	}
 
 	protected String getHref(MenuItem item) {

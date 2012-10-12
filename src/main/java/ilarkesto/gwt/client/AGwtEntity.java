@@ -17,6 +17,7 @@ package ilarkesto.gwt.client;
 import ilarkesto.core.time.Date;
 import ilarkesto.core.time.DateAndTime;
 import ilarkesto.core.time.Time;
+import ilarkesto.core.time.Tm;
 import ilarkesto.gwt.client.editor.AEditorModel;
 import ilarkesto.gwt.client.undo.AUndoOperation;
 
@@ -52,7 +53,7 @@ public abstract class AGwtEntity {
 	}
 
 	public void updateLocalModificationTime() {
-		localModificationTime = System.currentTimeMillis();
+		localModificationTime = Tm.getCurrentTimeMillis();
 	}
 
 	public final String getId() {

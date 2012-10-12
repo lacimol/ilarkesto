@@ -16,6 +16,7 @@ package ilarkesto.concurrent;
 
 import ilarkesto.base.Utl;
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.Tm;
 import ilarkesto.di.Context;
 
 import java.util.Collections;
@@ -42,11 +43,11 @@ public class TaskManager {
 	}
 
 	public void waitForRunningTasks(long maxWaitTime) {
-		long now = System.currentTimeMillis();
+		long now = Tm.getCurrentTimeMillis();
 		long tryUntilTime = now + maxWaitTime;
 		if (tryUntilTime < now) tryUntilTime = Long.MAX_VALUE;
 		Set<ATask> tasks;
-		while ((!(tasks = getRunningTasks()).isEmpty()) && System.currentTimeMillis() < tryUntilTime) {
+		while ((!(tasks = getRunningTasks()).isEmpty()) && Tm.getCurrentTimeMillis() < tryUntilTime) {
 			LOG.info("Waiting for running tasks:", tasks);
 			try {
 				Thread.sleep(100);

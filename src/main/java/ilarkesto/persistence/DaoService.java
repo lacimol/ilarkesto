@@ -15,6 +15,9 @@
 package ilarkesto.persistence;
 
 import ilarkesto.core.logging.Log;
+import ilarkesto.core.time.Date;
+import ilarkesto.core.time.DateAndTime;
+import ilarkesto.core.time.Time;
 import ilarkesto.di.Context;
 import ilarkesto.fp.Predicate;
 import ilarkesto.id.IdentifiableResolver;
@@ -159,9 +162,11 @@ public class DaoService implements IdentifiableResolver<AEntity> {
 				// TODO clean up this mess
 				String subpackageAndClass = entry.getValue().getName().substring(12);
 				entityStore.setAlias("org.organizanto.app.domain." + subpackageAndClass, entry.getValue());
-				LOG.debug("alias:", "org.organizanto.app.domain." + subpackageAndClass);
 			}
 		}
+		entityStore.setAlias("ilarkesto.base.time.Date", Date.class);
+		entityStore.setAlias("ilarkesto.base.time.Time", Time.class);
+		entityStore.setAlias("ilarkesto.base.time.DateAndTime", DateAndTime.class);
 
 		for (ADao dao : context.getBeansByType(ADao.class)) {
 			if (dao.getEntityClass() == null) continue;

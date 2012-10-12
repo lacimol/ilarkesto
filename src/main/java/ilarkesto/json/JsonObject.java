@@ -6,12 +6,29 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class JsonObject {
+
+	public static void main(String[] args) {
+		JsonObject json = new JsonObject();
+		json.put("name", "Witek");
+		json.put("gender", "male");
+
+		json.putNewObject("subobject").put("a", "1");
+		json.addToArray("array", "1");
+		json.addToArray("array", "2");
+		json.addToArray("array", new JsonObject());
+
+		String s = json.toFormatedString();
+		System.out.println(s);
+
+		new JsonObject(s);
+	}
 
 	private Map<String, Object> elements = new LinkedHashMap<String, Object>();
 	private int idx = -1;
@@ -70,16 +87,43 @@ public class JsonObject {
 		return (List) get(name);
 	}
 
-	public List getNumber(String name) {
-		return (List) get(name);
+	public Number getNumber(String name) {
+		return (Number) get(name);
 	}
 
 	public Integer getInteger(String name) {
-		return (Integer) get(name);
+		Number value = getNumber(name);
+		if (value == null) return null;
+		if (value instanceof Integer) return (Integer) value;
+		return value.intValue();
 	}
 
 	public Long getLong(String name) {
-		return (Long) get(name);
+		Number value = getNumber(name);
+		if (value == null) return null;
+		if (value instanceof Long) return (Long) value;
+		return value.longValue();
+	}
+
+	public Double getDouble(String name) {
+		Number value = getNumber(name);
+		if (value == null) return null;
+		if (value instanceof Double) return (Double) value;
+		return value.doubleValue();
+	}
+
+	public Float getFloat(String name) {
+		Number value = getNumber(name);
+		if (value == null) return null;
+		if (value instanceof Float) return (Float) value;
+		return value.floatValue();
+	}
+
+	public Byte getByte(String name) {
+		Number value = getNumber(name);
+		if (value == null) return null;
+		if (value instanceof Byte) return (Byte) value;
+		return value.byteValue();
 	}
 
 	public Boolean getBoolean(String name) {
@@ -123,21 +167,16 @@ public class JsonObject {
 		return elements.remove(name);
 	}
 
+	public JsonObject putNewObject(String name) {
+		return put(name, new JsonObject());
+	}
+
 	// --- formating ---
 
-	public String toFormatedString(int indentation) {
-		// TODO
-		return toString();
-	}
-
-	public String toFormatedString() {
-		return toFormatedString(2);
-	}
-
-	@Override
-	public String toString() {
+	String toString(int indentation) {
 		StringBuilder sb = new StringBuilder();
 		sb.append('{');
+		if (indentation >= 0) indentation++;
 		boolean first = true;
 		for (Map.Entry<String, Object> element : elements.entrySet()) {
 			if (first) {
@@ -145,11 +184,28 @@ public class JsonObject {
 			} else {
 				sb.append(',');
 			}
+			if (indentation >= 0) sb.append('\n');
+			Json.indent(sb, indentation);
 			sb.append('"').append(Json.escapeString(element.getKey())).append("\":");
-			sb.append(Json.valueToString(element.getValue()));
+			if (indentation >= 0) sb.append(' ');
+			sb.append(Json.valueToString(element.getValue(), indentation));
+		}
+		if (indentation >= 0) {
+			indentation--;
+			sb.append('\n');
+			Json.indent(sb, indentation);
 		}
 		sb.append('}');
 		return sb.toString();
+	}
+
+	public String toFormatedString() {
+		return toString(0);
+	}
+
+	@Override
+	public String toString() {
+		return toString(-1);
 	}
 
 	// --- parsing ---
@@ -184,6 +240,7 @@ public class JsonObject {
 	}
 
 	private void parseElement(String json) {
+		parseWhitespace(json, "\"");
 		if (json.charAt(idx) != '"') throw new ParseException("Expecting '\"'", json, idx);
 		idx++;
 		int nameEndIdx = Json.getFirstQuoting(json, idx);
@@ -258,6 +315,10 @@ public class JsonObject {
 
 	// --- IO ---
 
+	public void write(Writer out, boolean formated) {
+		write(new PrintWriter(out), formated);
+	}
+
 	public void write(File file, boolean formated) {
 		File dir = file.getParentFile();
 		if (!dir.exists()) {
@@ -269,12 +330,16 @@ public class JsonObject {
 		} catch (IOException ex) {
 			throw new RuntimeException("Writing file failed: " + file.getAbsolutePath(), ex);
 		}
+		write(out, formated);
+		out.close();
+	}
+
+	public void write(PrintWriter out, boolean formated) {
 		if (formated) {
 			out.print(toFormatedString());
 		} else {
 			out.print(toString());
 		}
-		out.close();
 	}
 
 	private static String load(File file) {
